@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Assistant Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Voice Assistant Interface</h1>
+    <button onclick="startListening()" id="startBtn">Start Listening</button>
+    <button onclick="stopListening()" id="stopBtn">Stop Listening</button>
+    <div id="status">
+        <p>Status: <span id="listening-status" class="status-inactive">Not Listening</span></p>
+    </div>
+    <div id="transcript-container">
+        <h3>Real-time Transcript:</h3>
+        <p id="interim"></p>
+        <p id="final"></p>
+    </div>
+    <div id="response-container">
+        <h3>Assistant Response:</h3>
+        <p id="response">None</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/speechRecognition.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socketHandlers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> 
