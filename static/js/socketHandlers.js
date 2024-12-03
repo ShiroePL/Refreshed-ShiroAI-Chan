@@ -2,6 +2,7 @@ class SocketHandler {
     constructor(socket) {
         this.socket = socket;
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.currentSource = null; // Track current audio source
     }
 
     initialize() {
@@ -21,6 +22,12 @@ class SocketHandler {
 
     async playAudio(base64Audio) {
         try {
+            // Stop any currently playing audio
+            if (this.currentSource) {
+                this.currentSource.stop();
+                this.currentSource = null;
+            }
+
             // Convert base64 to array buffer
             const audioData = atob(base64Audio);
             const arrayBuffer = new ArrayBuffer(audioData.length);
@@ -36,9 +43,21 @@ class SocketHandler {
             const source = this.audioContext.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(this.audioContext.destination);
+            
+            // Store reference to current source
+            this.currentSource = source;
+            
+            // Remove reference when playback ends
+            source.onended = () => {
+                if (this.currentSource === source) {
+                    this.currentSource = null;
+                }
+            };
+
             source.start(0);
         } catch (error) {
             console.error('Error playing audio:', error);
+            this.currentSource = null;
         }
     }
 

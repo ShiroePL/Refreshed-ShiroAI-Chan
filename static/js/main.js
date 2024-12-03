@@ -1,6 +1,9 @@
 const socket = io();
-const speechHandler = new SpeechRecognitionHandler(socket);
 const socketHandler = new SocketHandler(socket);
+const speechHandler = new SpeechRecognitionHandler(socket);
+
+// Connect the handlers
+speechHandler.socketHandler = socketHandler;
 
 socketHandler.initialize();
 
@@ -14,4 +17,7 @@ function stopListening() {
 
 window.onbeforeunload = function() {
     speechHandler.stop();
+    if (socketHandler.currentSource) {
+        socketHandler.currentSource.stop();
+    }
 }; 
