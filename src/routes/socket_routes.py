@@ -7,8 +7,11 @@ def handle_transcript(data):
     transcript = data.get('transcript', '')
     assistant.last_command = transcript
     response = assistant.get_response(transcript)
-    assistant.response = response
-    emit('response', {'response': response, 'transcript': transcript})
+    emit('response', {
+        'text': response['text'],
+        'audio': response['audio'],
+        'transcript': transcript
+    })
 
 @socketio.on('start_listening')
 def handle_start_listening():
