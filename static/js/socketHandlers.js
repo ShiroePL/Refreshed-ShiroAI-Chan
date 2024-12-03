@@ -2,12 +2,20 @@ class SocketHandler {
     constructor(socket) {
         this.socket = socket;
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        this.currentSource = null; // Track current audio source
+        this.currentSource = null;
+        this.currentAudioBuffer = null;
     }
 
     initialize() {
         this.socket.on('response', this.handleResponse.bind(this));
         this.socket.on('status_update', this.handleStatusUpdate.bind(this));
+    }
+
+    stopCurrentAudio() {
+        if (this.currentSource) {
+            this.currentSource.stop();
+            this.currentSource = null;
+        }
     }
 
     async handleResponse(data) {
@@ -16,18 +24,14 @@ class SocketHandler {
 
         // Play audio if available
         if (data.audio) {
+            // Stop any currently playing audio first
+            this.stopCurrentAudio();
             await this.playAudio(data.audio);
         }
     }
 
     async playAudio(base64Audio) {
         try {
-            // Stop any currently playing audio
-            if (this.currentSource) {
-                this.currentSource.stop();
-                this.currentSource = null;
-            }
-
             // Convert base64 to array buffer
             const audioData = atob(base64Audio);
             const arrayBuffer = new ArrayBuffer(audioData.length);
@@ -38,6 +42,7 @@ class SocketHandler {
 
             // Decode audio data
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            this.currentAudioBuffer = audioBuffer;
             
             // Create and play audio source
             const source = this.audioContext.createBufferSource();
@@ -47,7 +52,7 @@ class SocketHandler {
             // Store reference to current source
             this.currentSource = source;
             
-            // Remove reference when playback ends
+            // Remove reference when playback ends naturally
             source.onended = () => {
                 if (this.currentSource === source) {
                     this.currentSource = null;

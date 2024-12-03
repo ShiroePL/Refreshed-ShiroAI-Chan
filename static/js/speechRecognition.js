@@ -23,9 +23,8 @@ class SpeechRecognitionHandler {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                if (this.socketHandler && this.socketHandler.currentSource) {
-                    this.socketHandler.currentSource.stop();
-                    this.socketHandler.currentSource = null;
+                if (this.socketHandler) {
+                    this.socketHandler.stopCurrentAudio();
                 }
                 
                 finalTranscript += transcript;
