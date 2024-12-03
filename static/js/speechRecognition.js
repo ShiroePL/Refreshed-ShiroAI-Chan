@@ -3,6 +3,7 @@ class SpeechRecognitionHandler {
         this.recognition = null;
         this.isListening = false;
         this.socket = socket;
+        this.socketHandler = null;
     }
 
     initialize() {
@@ -22,6 +23,10 @@ class SpeechRecognitionHandler {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
+                if (this.socketHandler) {
+                    this.socketHandler.stopCurrentAudio();
+                }
+                
                 finalTranscript += transcript;
                 this.socket.emit('transcript', { transcript: transcript });
             } else {
