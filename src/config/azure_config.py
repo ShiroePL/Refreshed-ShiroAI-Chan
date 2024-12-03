@@ -14,3 +14,13 @@ def get_speech_config():
         subscription=speech_key,
         region=service_region
     ) 
+
+def get_groq_api_keys():
+    """Get Groq API keys from environment variables."""
+    api_keys_str = os.getenv('GROQ_API_KEY')
+    
+    if not api_keys_str:
+        raise ValueError("Groq API keys not found in environment variables. "
+                        "Please set GROQ_API_KEY as comma-separated values.")
+    
+    return api_keys_str.split(',') 

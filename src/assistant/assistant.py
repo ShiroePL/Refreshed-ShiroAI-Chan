@@ -2,6 +2,7 @@ from src.config.azure_config import get_speech_config
 import azure.cognitiveservices.speech as speechsdk
 import base64
 import io
+from .response_handler import ResponseHandler
 
 class SimpleAssistant:
     def __init__(self):
@@ -14,11 +15,11 @@ class SimpleAssistant:
             speech_config=self.speech_config,
             audio_config=None  # We'll use raw audio output
         )
+        self.response_handler = ResponseHandler()
 
     def get_response(self, command):
         """Get response from the response handler."""
-        from .response_handler import handle_response
-        response_text = handle_response(command, self)
+        response_text = self.response_handler.handle_response(command, self)
         
         # Generate speech from response
         audio_data = self.text_to_speech(response_text)
