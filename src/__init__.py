@@ -1,16 +1,11 @@
-from flask import Flask
-from flask_socketio import SocketIO
-from src.assistant.assistant import SimpleAssistant
+from src.app_instance import app, socketio, assistant
 
-app = Flask(__name__, 
-           template_folder='../templates',
-           static_folder='../static')
-socketio = SocketIO(app)
-assistant = SimpleAssistant()
-
-# Import routes after app initialization
+# Import routes first
 from src.routes import main_routes, socket_routes
 
-# Initialize hotkey handler after socketio is fully set up
+# Initialize hotkey handler after routes are imported
 from src.hotkeys.hotkey_handler import HotkeyHandler
+from src.app_instance import hotkey_handler
+
+# Create and store hotkey handler instance
 hotkey_handler = HotkeyHandler(socketio)
