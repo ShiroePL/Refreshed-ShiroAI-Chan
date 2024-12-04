@@ -57,4 +57,18 @@ def handle_audio_finished():
         if assistant.listening:
             hotkey_handler.overlay.set_state(AssistantState.LISTENING)
         else:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE) 
+            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+
+@socketio.on('push_to_talk_start')
+def handle_push_to_talk_start():
+    """Handle push-to-talk start event."""
+    if hotkey_handler:
+        hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+    # Note: We don't update assistant.listening here
+
+@socketio.on('push_to_talk_stop')
+def handle_push_to_talk_stop():
+    """Handle push-to-talk stop event."""
+    if hotkey_handler:
+        hotkey_handler.overlay.set_state(AssistantState.IDLE)
+    # Note: We don't update assistant.listening here 

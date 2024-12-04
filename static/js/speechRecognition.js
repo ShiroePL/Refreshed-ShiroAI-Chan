@@ -105,16 +105,18 @@ class SpeechRecognitionHandler {
             this.updateUI();
             // Start recognition
             this.recognition.start();
-            // Emit start listening to update overlay state
-            this.socket.emit('start_listening');
+            // Emit push-to-talk specific event
+            this.socket.emit('push_to_talk_start');
         }
     }
 
     stopPushToTalk() {
         if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
-            this.stop();
-            // Emit stop listening to update overlay state
-            this.socket.emit('stop_listening');
+            this.recognition.stop();
+            this.state = SpeechRecognitionHandler.States.IDLE;
+            this.updateUI();
+            // Emit push-to-talk specific event
+            this.socket.emit('push_to_talk_stop');
         }
     }
 
