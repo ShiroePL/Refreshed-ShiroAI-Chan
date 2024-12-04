@@ -100,18 +100,21 @@ class SpeechRecognitionHandler {
     }
 
     startPushToTalk() {
-        if (this.state === SpeechRecognitionHandler.States.LISTENING) {
-            this.stop();
-        }
-        
-        if (this.state === SpeechRecognitionHandler.States.IDLE) {
-            this.startRecognition(SpeechRecognitionHandler.States.PUSH_TO_TALK);
+        if (this.state !== SpeechRecognitionHandler.States.PUSH_TO_TALK) {
+            this.state = SpeechRecognitionHandler.States.PUSH_TO_TALK;
+            this.updateUI();
+            // Start recognition
+            this.recognition.start();
+            // Emit start listening to update overlay state
+            this.socket.emit('start_listening');
         }
     }
 
     stopPushToTalk() {
         if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
             this.stop();
+            // Emit stop listening to update overlay state
+            this.socket.emit('stop_listening');
         }
     }
 
