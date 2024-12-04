@@ -4,6 +4,8 @@ class SocketHandler {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.currentSource = null;
         this.currentAudioBuffer = null;
+        this.voiceEnabled = true;
+        this.pendingVoiceDisable = false;
     }
 
     initialize() {
@@ -15,15 +17,28 @@ class SocketHandler {
         if (this.currentSource) {
             this.currentSource.stop();
             this.currentSource = null;
+            
+            if (this.pendingVoiceDisable) {
+                this.completeVoiceDisable();
+            }
         }
+    }
+
+    completeVoiceDisable() {
+        this.pendingVoiceDisable = false;
+        this.voiceEnabled = false;
+        const btn = document.getElementById('voiceToggleBtn');
+        btn.innerHTML = '<i class="bi bi-volume-mute-fill"></i> Voice Off';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-danger');
     }
 
     async handleResponse(data) {
         // Update text response
         document.getElementById('response').textContent = data.text;
 
-        // Play audio if available
-        if (data.audio) {
+        // Play audio if available and voice is enabled
+        if (data.audio && this.voiceEnabled) {
             // Stop any currently playing audio first
             this.stopCurrentAudio();
             await this.playAudio(data.audio);
@@ -52,10 +67,13 @@ class SocketHandler {
             // Store reference to current source
             this.currentSource = source;
             
-            // Remove reference when playback ends naturally
+            // Handle audio end
             source.onended = () => {
                 if (this.currentSource === source) {
                     this.currentSource = null;
+                    if (this.pendingVoiceDisable) {
+                        this.completeVoiceDisable();
+                    }
                 }
             };
 
@@ -63,6 +81,9 @@ class SocketHandler {
         } catch (error) {
             console.error('Error playing audio:', error);
             this.currentSource = null;
+            if (this.pendingVoiceDisable) {
+                this.completeVoiceDisable();
+            }
         }
     }
 
@@ -70,5 +91,26 @@ class SocketHandler {
         const statusElement = document.getElementById('listening-status');
         statusElement.textContent = data.listening ? 'Listening' : 'Not Listening';
         statusElement.className = data.listening ? 'status-active' : 'status-inactive';
+    }
+
+    toggleVoice() {
+        if (this.voiceEnabled) {
+            if (this.currentSource) {
+                this.pendingVoiceDisable = true;
+                const btn = document.getElementById('voiceToggleBtn');
+                btn.innerHTML = '<i class="bi bi-volume-mute-fill"></i> Voice Off (After Current)';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-danger');
+            } else {
+                this.completeVoiceDisable();
+            }
+        } else {
+            this.pendingVoiceDisable = false;
+            this.voiceEnabled = true;
+            const btn = document.getElementById('voiceToggleBtn');
+            btn.innerHTML = '<i class="bi bi-volume-up-fill"></i> Voice On';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-success');
+        }
     }
 } 

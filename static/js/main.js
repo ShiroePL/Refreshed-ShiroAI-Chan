@@ -17,6 +17,14 @@ function stopListening() {
     speechHandler.stop();
 }
 
+function toggleVoice() {
+    socketHandler.toggleVoice();
+}
+
+function stopSpeaking() {
+    socketHandler.stopCurrentAudio();
+}
+
 // Add keyboard shortcut to stop audio (optional)
 document.addEventListener('keydown', (event) => {
     if (event.code === 'Escape') {
