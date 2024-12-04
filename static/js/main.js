@@ -35,10 +35,32 @@ function stopSpeaking() {
     socketHandler.stopCurrentAudio();
 }
 
+function startPushToTalk() {
+    speechHandler.startPushToTalk();
+}
+
+function stopPushToTalk() {
+    speechHandler.stopPushToTalk();
+}
+
 // Add keyboard shortcut to stop audio (optional)
 document.addEventListener('keydown', (event) => {
     if (event.code === 'Escape') {
         socketHandler.stopCurrentAudio();
+    }
+});
+
+// Add keyboard shortcut for push-to-talk (space bar)
+document.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !event.repeat && !event.target.matches('input, textarea')) {
+        event.preventDefault(); // Prevent page scrolling
+        startPushToTalk();
+    }
+});
+
+document.addEventListener('keyup', (event) => {
+    if (event.code === 'Space' && !event.target.matches('input, textarea')) {
+        stopPushToTalk();
     }
 });
 

@@ -17,7 +17,10 @@
                         
                         <div class="d-flex justify-content-center gap-2 mb-4">
                             <button onclick="toggleListening()" id="listenBtn" class="btn btn-primary">
-                                <i class="bi bi-mic-fill"></i> Start Listening
+                                <i class="bi bi-mic-fill"></i> Toggle Listen
+                            </button>
+                            <button id="pushToTalkBtn" class="btn btn-info" onmousedown="startPushToTalk()" onmouseup="stopPushToTalk()" ontouchstart="startPushToTalk()" ontouchend="stopPushToTalk()">
+                                <i class="bi bi-mic-fill"></i> Push to Talk
                             </button>
                             <button onclick="toggleVoice()" id="voiceToggleBtn" class="btn btn-success">
                                 <i class="bi bi-volume-up-fill"></i> Voice On
