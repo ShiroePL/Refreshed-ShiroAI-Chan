@@ -39,6 +39,11 @@ The assistant includes a global Push-to-Talk feature that works even when the br
 - Groq API
 - WebSocket for real-time communication
 
+## Requirements
+- Python 3.7+
+- Modern web browser
+- Administrative privileges (for global hotkey functionality)
+
 ## Local Setup
 
 1. Clone the repository
@@ -46,8 +51,11 @@ The assistant includes a global Push-to-Talk feature that works even when the br
    - `SPEECH_KEY` - Azure Speech Service key
    - `SPEECH_REGION` - Azure Speech Service region
    - `GROQ_API_KEY` - Comma-separated Groq API keys
-3. Install dependencies
-4. Run `python app.py`
+3. Install dependencies: `pip install -r requirements.txt`
+4. Run with administrative privileges (required for global hotkeys):
+   - Windows: Right-click Python/terminal and "Run as Administrator"
+   - Linux: `sudo python app.py`
+   - Mac: `sudo python app.py`
 5. Open browser at `http://localhost:5000`
 
 ## Usage

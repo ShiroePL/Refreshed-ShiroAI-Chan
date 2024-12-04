@@ -49,7 +49,16 @@ const PUSH_TO_TALK_KEY = '`';  // Backtick/tilde key
 // Global flag to track push-to-talk state
 let isPushToTalkPressed = false;
 
-// Handle push-to-talk globally
+// Listen for hotkey events from Python
+socket.on('hotkey_push_to_talk_start', () => {
+    startPushToTalk();
+});
+
+socket.on('hotkey_push_to_talk_stop', () => {
+    stopPushToTalk();
+});
+
+// Keep the keyboard events for when the window is focused
 document.addEventListener('keydown', (event) => {
     if (event.key === PUSH_TO_TALK_KEY && !isPushToTalkPressed) {
         isPushToTalkPressed = true;
