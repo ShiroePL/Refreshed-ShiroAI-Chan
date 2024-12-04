@@ -43,28 +43,46 @@ function stopPushToTalk() {
     speechHandler.stopPushToTalk();
 }
 
-// Add keyboard shortcut to stop audio (optional)
-document.addEventListener('keydown', (event) => {
-    if (event.code === 'Escape') {
-        socketHandler.stopCurrentAudio();
-    }
-});
+// Configuration for hotkeys
+const PUSH_TO_TALK_KEY = '`';  // Backtick/tilde key
 
-// Add keyboard shortcut for push-to-talk (space bar)
+// Global flag to track push-to-talk state
+let isPushToTalkPressed = false;
+
+// Handle push-to-talk globally
 document.addEventListener('keydown', (event) => {
-    if (event.code === 'Space' && !event.repeat && !event.target.matches('input, textarea')) {
-        event.preventDefault(); // Prevent page scrolling
+    if (event.key === PUSH_TO_TALK_KEY && !isPushToTalkPressed) {
+        isPushToTalkPressed = true;
         startPushToTalk();
     }
 });
 
 document.addEventListener('keyup', (event) => {
-    if (event.code === 'Space' && !event.target.matches('input, textarea')) {
+    if (event.key === PUSH_TO_TALK_KEY) {
+        isPushToTalkPressed = false;
         stopPushToTalk();
     }
 });
 
+// Handle visibility change
+document.addEventListener('visibilitychange', () => {
+    // If push-to-talk was pressed before tab lost focus, maintain the state
+    if (isPushToTalkPressed) {
+        startPushToTalk();
+    }
+});
+
+// Handle window focus/blur
+window.addEventListener('blur', () => {
+    // If push-to-talk was pressed before window lost focus, maintain the state
+    if (isPushToTalkPressed) {
+        startPushToTalk();
+    }
+});
+
+// Cleanup on page unload
 window.onbeforeunload = function() {
+    isPushToTalkPressed = false;
     speechHandler.stop();
     socketHandler.stopCurrentAudio();
 }; 

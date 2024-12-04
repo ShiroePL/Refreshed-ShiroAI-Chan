@@ -9,6 +9,27 @@ A voice-enabled AI assistant with an anime-inspired personality. Shiro is a bubb
 - AI-powered conversations using Groq's LLaMA model
 - Anime-inspired personality with cat-like speech patterns
 - Web interface for easy interaction
+- Global Push-to-Talk functionality using Backtick/Tilde Key
+- Toggle listening mode for hands-free operation
+
+## Voice Control Features
+
+### Push-to-Talk (Backtick/Tilde Key)
+The assistant includes a global Push-to-Talk feature that works even when the browser window is not focused:
+- Press and hold the backtick key (`) (the key before 1 on keyboard) to activate voice input
+- Release the key to stop recording and process your speech
+- Works in background when browser is minimized
+
+**Requirements for Background Operation:**
+1. Browser must be running in the background
+2. Backtick key (`) should not be captured by other applications
+3. Some browsers may require additional permissions for background access
+4. For optimal performance, keep the browser running and avoid system sleep mode
+
+### Other Voice Controls
+- Toggle Listen button for continuous listening mode
+- Voice On/Off toggle for assistant's speech
+- Stop Speaking button to interrupt assistant's current speech
 
 ## Tech Stack
 
@@ -31,4 +52,9 @@ A voice-enabled AI assistant with an anime-inspired personality. Shiro is a bubb
 
 ## Usage
 
-Click "Start Listening" to begin voice interaction with Shiro. She'll respond both in text and voice, maintaining her characteristic anime-inspired personality.
+The assistant can be controlled in multiple ways:
+1. Using the web interface buttons
+2. Using Backtick/Tilde Key for Push-to-Talk (works globally)
+3. Using Toggle Listen for hands-free operation
+
+For the best experience, ensure no other applications are using the Backtick/Tilde Key and keep the browser running in the background.
