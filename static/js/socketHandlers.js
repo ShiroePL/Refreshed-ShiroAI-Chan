@@ -148,4 +148,19 @@ class SocketHandler {
             btn.classList.add('btn-success');
         }
     }
+
+    playAudioResponse(audioData) {
+        if (!this.voiceEnabled) return;
+        
+        // ... existing audio playback code ...
+
+        // Add ended event handler
+        this.currentSource.onended = () => {
+            this.currentSource = null;
+            this.socket.emit('audio_finished');
+            if (this.pendingVoiceDisable) {
+                this.completeVoiceDisable();
+            }
+        };
+    }
 } 
