@@ -133,10 +133,12 @@ class SpeechRecognitionHandler {
                 this.stop();
             }
 
-            this.isPushToTalk = true;
-            this.recognition.starting = true;
-            this.recognition.start();
-            this.updateUI();
+            if (!this.isPushToTalk) {  // Only start if not already in push-to-talk mode
+                this.isPushToTalk = true;
+                this.recognition.starting = true;
+                this.recognition.start();
+                this.updateUI();
+            }
             
         } catch (error) {
             console.error("Error in startPushToTalk:", error);

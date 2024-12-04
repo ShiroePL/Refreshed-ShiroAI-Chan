@@ -1,11 +1,25 @@
+// Configuration for hotkeys
+const PUSH_TO_TALK_KEY = '`';  // Backtick/tilde key
+
 const socket = io();
 const socketHandler = new SocketHandler(socket);
 const speechHandler = new SpeechRecognitionHandler(socket);
+let isPushToTalkPressed = false;
 
 // Connect the handlers
 speechHandler.socketHandler = socketHandler;
 
 socketHandler.initialize();
+
+// Initialize audio context after user interaction
+function initializeAudioContext() {
+    if (socketHandler.audioContext.state === 'suspended') {
+        socketHandler.audioContext.resume();
+    }
+}
+
+// Add click handler to body to initialize audio
+document.body.addEventListener('click', initializeAudioContext);
 
 function toggleListening() {
     const btn = document.getElementById('listenBtn');
@@ -36,18 +50,18 @@ function stopSpeaking() {
 }
 
 function startPushToTalk() {
-    speechHandler.startPushToTalk();
+    if (!isPushToTalkPressed) {
+        isPushToTalkPressed = true;
+        speechHandler.startPushToTalk();
+    }
 }
 
 function stopPushToTalk() {
-    speechHandler.stopPushToTalk();
+    if (isPushToTalkPressed) {
+        isPushToTalkPressed = false;
+        speechHandler.stopPushToTalk();
+    }
 }
-
-// Configuration for hotkeys
-const PUSH_TO_TALK_KEY = '`';  // Backtick/tilde key
-
-// Global flag to track push-to-talk state
-let isPushToTalkPressed = false;
 
 // Listen for hotkey events from Python
 socket.on('hotkey_push_to_talk_start', () => {
@@ -58,34 +72,17 @@ socket.on('hotkey_push_to_talk_stop', () => {
     stopPushToTalk();
 });
 
-// Keep the keyboard events for when the window is focused
+// Browser keyboard events (only when focused)
 document.addEventListener('keydown', (event) => {
-    if (event.key === PUSH_TO_TALK_KEY && !isPushToTalkPressed) {
-        isPushToTalkPressed = true;
+    if (event.key === PUSH_TO_TALK_KEY) {
+        event.preventDefault();
         startPushToTalk();
     }
 });
 
 document.addEventListener('keyup', (event) => {
     if (event.key === PUSH_TO_TALK_KEY) {
-        isPushToTalkPressed = false;
         stopPushToTalk();
-    }
-});
-
-// Handle visibility change
-document.addEventListener('visibilitychange', () => {
-    // If push-to-talk was pressed before tab lost focus, maintain the state
-    if (isPushToTalkPressed) {
-        startPushToTalk();
-    }
-});
-
-// Handle window focus/blur
-window.addEventListener('blur', () => {
-    // If push-to-talk was pressed before window lost focus, maintain the state
-    if (isPushToTalkPressed) {
-        startPushToTalk();
     }
 });
 

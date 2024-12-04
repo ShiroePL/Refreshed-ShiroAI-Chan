@@ -1,7 +1,7 @@
 class SocketHandler {
     constructor(socket) {
         this.socket = socket;
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.audioContext = null;
         this.currentSource = null;
         this.currentAudioBuffer = null;
         this.voiceEnabled = true;
@@ -9,6 +9,7 @@ class SocketHandler {
     }
 
     initialize() {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.socket.on('response', this.handleResponse.bind(this));
         this.socket.on('status_update', this.handleStatusUpdate.bind(this));
     }
@@ -47,6 +48,11 @@ class SocketHandler {
 
     async playAudio(base64Audio) {
         try {
+            // Ensure audio context is running
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
             // Convert base64 to array buffer
             const audioData = atob(base64Audio);
             const arrayBuffer = new ArrayBuffer(audioData.length);
