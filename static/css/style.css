@@ -1,27 +1,46 @@
 body {
-    font-family: Arial, sans-serif;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-#transcript-container {
-    margin: 20px 0;
-    padding: 10px;
-    border: 1px solid #ccc;
-    min-height: 100px;
+#transcript-container, #response-container {
+    background-color: #fff;
 }
 
 .status-active {
-    color: green;
+    color: #198754;  /* Bootstrap success color */
+    font-weight: 600;
 }
 
 .status-inactive {
-    color: red;
+    color: #dc3545;  /* Bootstrap danger color */
+    font-weight: 600;
 }
 
-button {
-    padding: 10px 20px;
-    margin: 5px;
-    font-size: 16px;
+#interim {
+    font-style: italic;
+    min-height: 24px;
+}
+
+#final {
+    font-weight: 500;
+    min-height: 24px;
+}
+
+.card {
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,.125);
+}
+
+.card-header {
+    background-color: rgba(0,0,0,.03);
+    border-bottom: 1px solid rgba(0,0,0,.125);
+}
+
+.btn {
+    padding: 0.5rem 1.5rem;
+    font-weight: 500;
+}
+
+.btn i {
+    margin-right: 0.5rem;
 } 
