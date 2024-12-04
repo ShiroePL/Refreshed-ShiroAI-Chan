@@ -81,12 +81,14 @@ class SpeechRecognitionHandler {
 
     start() {
         if (this.state === SpeechRecognitionHandler.States.IDLE) {
+            this.socket.emit('start_listening');
             this.startRecognition(SpeechRecognitionHandler.States.LISTENING);
         }
     }
 
     stop() {
         if (this.state !== SpeechRecognitionHandler.States.IDLE) {
+            this.socket.emit('stop_listening');
             try {
                 this.recognition.stop();
                 this.setState(SpeechRecognitionHandler.States.IDLE);
@@ -98,18 +100,22 @@ class SpeechRecognitionHandler {
     }
 
     startPushToTalk() {
-        if (this.state === SpeechRecognitionHandler.States.LISTENING) {
-            this.stop();
-        }
-        
-        if (this.state === SpeechRecognitionHandler.States.IDLE) {
-            this.startRecognition(SpeechRecognitionHandler.States.PUSH_TO_TALK);
+        if (this.state !== SpeechRecognitionHandler.States.PUSH_TO_TALK) {
+            this.state = SpeechRecognitionHandler.States.PUSH_TO_TALK;
+            this.updateUI();
+            // Start recognition
+            this.recognition.start();
+            // Emit push-to-talk specific event
+            this.socket.emit('push_to_talk_start');
         }
     }
 
     stopPushToTalk() {
         if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
-            this.stop();
+            this.recognition.stop();
+            this.setState(SpeechRecognitionHandler.States.IDLE);
+            // Emit push-to-talk specific event
+            this.socket.emit('push_to_talk_stop');
         }
     }
 
@@ -159,6 +165,10 @@ class SpeechRecognitionHandler {
                 
                 finalTranscript += transcript;
                 if (finalTranscript.trim().length > 0) {
+                    // Stop listening if the command contains "stop"
+                    if (transcript.toLowerCase().includes('stop')) {
+                        this.stop();
+                    }
                     this.socket.emit('transcript', { transcript: transcript });
                 }
             } else {
