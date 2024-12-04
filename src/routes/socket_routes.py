@@ -1,6 +1,7 @@
 from flask_socketio import emit
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.overlay.status_overlay import AssistantState
+from src.utils.logging_config import handle_error
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,31 +45,41 @@ def handle_start_listening():
 @socketio.on('stop_listening')
 def handle_stop_listening():
     """Handle stop listening event."""
-    assistant.listening = False
-    if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.IDLE)
-    emit('status_update', {'listening': False})
+    try:
+        assistant.listening = False
+        if hotkey_handler:
+            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+        emit('status_update', {'listening': False})
+    except Exception as e:
+        handle_error(logger, e, "Stop listening handler")
 
 @socketio.on('audio_finished')
 def handle_audio_finished():
     """Handle audio playback finished event."""
-    if hotkey_handler:
-        # Return to listening state if toggle is on, otherwise idle
-        if assistant.listening:
-            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
-        else:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+    try:
+        if hotkey_handler:
+            if assistant.listening:
+                hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+            else:
+                hotkey_handler.overlay.set_state(AssistantState.IDLE)
+    except Exception as e:
+        handle_error(logger, e, "Audio finished handler")
 
 @socketio.on('push_to_talk_start')
 def handle_push_to_talk_start():
     """Handle push-to-talk start event."""
-    if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.LISTENING)
-    # Note: We don't update assistant.listening here
+    try:
+        if hotkey_handler:
+            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+    except Exception as e:
+        handle_error(logger, e, "Push-to-talk start handler", silent=True)
 
 @socketio.on('push_to_talk_stop')
 def handle_push_to_talk_stop():
     """Handle push-to-talk stop event."""
-    if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.IDLE)
-    # Note: We don't update assistant.listening here 
+    try:
+        if hotkey_handler:
+            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+    except Exception as e:
+        handle_error(logger, e, "Push-to-talk stop handler", silent=True)
+    

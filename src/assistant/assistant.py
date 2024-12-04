@@ -3,31 +3,44 @@ import azure.cognitiveservices.speech as speechsdk
 import base64
 import io
 from .response_handler import ResponseHandler
+from src.utils.logging_config import handle_error
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SimpleAssistant:
     def __init__(self):
-        self.listening = False
-        self.last_command = ""
-        self.response = ""
-        self.running = True
-        self.speech_config = get_speech_config()
-        self.speech_synthesizer = speechsdk.SpeechSynthesizer(
-            speech_config=self.speech_config,
-            audio_config=None  # We'll use raw audio output
-        )
-        self.response_handler = ResponseHandler()
+        try:
+            self.listening = False
+            self.last_command = ""
+            self.response = ""
+            self.running = True
+            self.speech_config = get_speech_config()
+            self.speech_synthesizer = speechsdk.SpeechSynthesizer(
+                speech_config=self.speech_config,
+                audio_config=None  # We'll use raw audio output
+            )
+            self.response_handler = ResponseHandler()
+            logger.info("Assistant initialized successfully")
+        except Exception as e:
+            handle_error(logger, e, "Assistant initialization")
 
     def get_response(self, command):
         """Get response from the response handler."""
-        response_text = self.response_handler.handle_response(command, self)
-        
-        # Generate speech from response
-        audio_data = self.text_to_speech(response_text)
-        
-        return {
-            'text': response_text,
-            'audio': audio_data
-        }
+        try:
+            response_text = self.response_handler.handle_response(command, self)
+            audio_data = self.text_to_speech(response_text)
+            
+            return {
+                'text': response_text,
+                'audio': audio_data
+            }
+        except Exception as e:
+            handle_error(logger, e, "Getting assistant response")
+            return {
+                'text': "I encountered an error processing your request.",
+                'audio': None
+            }
 
     def text_to_speech(self, text):
         """Convert text to speech using Azure TTS."""
@@ -53,9 +66,9 @@ class SimpleAssistant:
                 audio_data = base64.b64encode(result.audio_data).decode('utf-8')
                 return audio_data
             else:
-                print(f"Speech synthesis failed: {result.reason}")
+                logger.error(f"Speech synthesis failed: {result.reason}")
                 return None
                 
         except Exception as e:
-            print(f"Error in text_to_speech: {str(e)}")
+            handle_error(logger, e, "Text-to-speech conversion")
             return None 
