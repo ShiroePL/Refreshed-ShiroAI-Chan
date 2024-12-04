@@ -89,8 +89,21 @@ class SocketHandler {
 
     handleStatusUpdate(data) {
         const statusElement = document.getElementById('listening-status');
+        const listenBtn = document.getElementById('listenBtn');
+        
         statusElement.textContent = data.listening ? 'Listening' : 'Not Listening';
         statusElement.className = data.listening ? 'status-active' : 'status-inactive';
+        
+        // Update button state to match status
+        if (data.listening) {
+            listenBtn.innerHTML = '<i class="bi bi-mic-mute-fill"></i> Stop Listening';
+            listenBtn.classList.remove('btn-primary');
+            listenBtn.classList.add('btn-danger');
+        } else {
+            listenBtn.innerHTML = '<i class="bi bi-mic-fill"></i> Start Listening';
+            listenBtn.classList.remove('btn-danger');
+            listenBtn.classList.add('btn-primary');
+        }
     }
 
     toggleVoice() {
