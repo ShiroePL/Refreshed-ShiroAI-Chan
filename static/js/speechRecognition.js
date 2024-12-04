@@ -1,19 +1,149 @@
 class SpeechRecognitionHandler {
+    static States = {
+        IDLE: 'IDLE',
+        LISTENING: 'LISTENING',
+        PUSH_TO_TALK: 'PUSH_TO_TALK',
+        ERROR: 'ERROR',
+        STARTING: 'STARTING'  // Added to handle initialization state
+    };
+
     constructor(socket) {
+        this.state = SpeechRecognitionHandler.States.IDLE;
         this.recognition = null;
-        this.isListening = false;
         this.socket = socket;
         this.socketHandler = null;
+        this.initialize();
+    }
+
+    setState(newState) {
+        console.log(`State transition: ${this.state} -> ${newState}`);
+        this.state = newState;
+        this.updateUI();
     }
 
     initialize() {
-        this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        this.recognition.interimResults = true;
-        this.recognition.continuous = true;
-        this.recognition.lang = 'en-US';
+        if (!this.recognition) {
+            this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            this.recognition.interimResults = true;
+            this.recognition.continuous = true;
+            this.recognition.lang = 'en-US';
 
-        this.recognition.onresult = this.handleResult.bind(this);
-        this.recognition.onerror = this.handleError.bind(this);
+            this.recognition.onstart = () => {
+                console.log("Recognition started");
+                if (this.state === SpeechRecognitionHandler.States.STARTING) {
+                    this.setState(this.pendingState || SpeechRecognitionHandler.States.LISTENING);
+                }
+            };
+
+            this.recognition.onend = () => {
+                console.log("Recognition ended");
+                
+                switch (this.state) {
+                    case SpeechRecognitionHandler.States.PUSH_TO_TALK:
+                        this.setState(SpeechRecognitionHandler.States.IDLE);
+                        break;
+                    case SpeechRecognitionHandler.States.LISTENING:
+                        // Auto-restart continuous listening
+                        setTimeout(() => {
+                            if (this.state === SpeechRecognitionHandler.States.LISTENING) {
+                                this.startRecognition(SpeechRecognitionHandler.States.LISTENING);
+                            }
+                        }, 200);
+                        break;
+                }
+            };
+
+            this.recognition.onresult = this.handleResult.bind(this);
+            
+            this.recognition.onerror = (event) => {
+                console.error("Recognition error:", event.error);
+                this.setState(SpeechRecognitionHandler.States.ERROR);
+                this.recognition.stop();
+                setTimeout(() => {
+                    if (this.state === SpeechRecognitionHandler.States.ERROR) {
+                        this.setState(SpeechRecognitionHandler.States.IDLE);
+                    }
+                }, 1000);
+            };
+        }
+    }
+
+    startRecognition(targetState) {
+        try {
+            this.pendingState = targetState;
+            this.setState(SpeechRecognitionHandler.States.STARTING);
+            this.recognition.start();
+        } catch (error) {
+            console.error("Error starting recognition:", error);
+            this.setState(SpeechRecognitionHandler.States.ERROR);
+        }
+    }
+
+    start() {
+        if (this.state === SpeechRecognitionHandler.States.IDLE) {
+            this.startRecognition(SpeechRecognitionHandler.States.LISTENING);
+        }
+    }
+
+    stop() {
+        if (this.state !== SpeechRecognitionHandler.States.IDLE) {
+            try {
+                this.recognition.stop();
+                this.setState(SpeechRecognitionHandler.States.IDLE);
+            } catch (error) {
+                console.error("Error stopping recognition:", error);
+                this.setState(SpeechRecognitionHandler.States.ERROR);
+            }
+        }
+    }
+
+    startPushToTalk() {
+        if (this.state === SpeechRecognitionHandler.States.LISTENING) {
+            this.stop();
+        }
+        
+        if (this.state === SpeechRecognitionHandler.States.IDLE) {
+            this.startRecognition(SpeechRecognitionHandler.States.PUSH_TO_TALK);
+        }
+    }
+
+    stopPushToTalk() {
+        if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
+            this.stop();
+        }
+    }
+
+    updateUI() {
+        // Update Push-to-Talk button
+        const pushToTalkBtn = document.getElementById('pushToTalkBtn');
+        const isPushToTalk = this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK;
+        pushToTalkBtn.classList.toggle('btn-danger', isPushToTalk);
+        pushToTalkBtn.classList.toggle('btn-info', !isPushToTalk);
+
+        // Update status text and class
+        const statusElement = document.getElementById('listening-status');
+        switch (this.state) {
+            case SpeechRecognitionHandler.States.IDLE:
+                statusElement.textContent = 'Not Listening';
+                statusElement.className = 'status-inactive';
+                break;
+            case SpeechRecognitionHandler.States.LISTENING:
+                statusElement.textContent = 'Listening';
+                statusElement.className = 'status-active';
+                break;
+            case SpeechRecognitionHandler.States.PUSH_TO_TALK:
+                statusElement.textContent = 'Push-to-Talk Active';
+                statusElement.className = 'status-active';
+                break;
+            case SpeechRecognitionHandler.States.ERROR:
+                statusElement.textContent = 'Error - Retrying...';
+                statusElement.className = 'status-inactive';
+                break;
+            case SpeechRecognitionHandler.States.STARTING:
+                statusElement.textContent = 'Starting...';
+                statusElement.className = 'status-active';
+                break;
+        }
     }
 
     handleResult(event) {
@@ -28,7 +158,9 @@ class SpeechRecognitionHandler {
                 }
                 
                 finalTranscript += transcript;
-                this.socket.emit('transcript', { transcript: transcript });
+                if (finalTranscript.trim().length > 0) {
+                    this.socket.emit('transcript', { transcript: transcript });
+                }
             } else {
                 interimTranscript += transcript;
             }
@@ -38,27 +170,5 @@ class SpeechRecognitionHandler {
         if (finalTranscript) {
             document.getElementById('final').textContent = finalTranscript;
         }
-    }
-
-    handleError(event) {
-        console.error('Speech recognition error:', event.error);
-        this.stop();
-    }
-
-    start() {
-        if (!this.recognition) {
-            this.initialize();
-        }
-        this.recognition.start();
-        this.isListening = true;
-        this.socket.emit('start_listening');
-    }
-
-    stop() {
-        if (this.recognition) {
-            this.recognition.stop();
-        }
-        this.isListening = false;
-        this.socket.emit('stop_listening');
     }
 } 

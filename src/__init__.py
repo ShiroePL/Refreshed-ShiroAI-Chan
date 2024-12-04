@@ -9,4 +9,8 @@ socketio = SocketIO(app)
 assistant = SimpleAssistant()
 
 # Import routes after app initialization
-from src.routes import main_routes, socket_routes 
+from src.routes import main_routes, socket_routes
+
+# Initialize hotkey handler after socketio is fully set up
+from src.hotkeys.hotkey_handler import HotkeyHandler
+hotkey_handler = HotkeyHandler(socketio)
