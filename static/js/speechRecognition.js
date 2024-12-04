@@ -113,8 +113,7 @@ class SpeechRecognitionHandler {
     stopPushToTalk() {
         if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
             this.recognition.stop();
-            this.state = SpeechRecognitionHandler.States.IDLE;
-            this.updateUI();
+            this.setState(SpeechRecognitionHandler.States.IDLE);
             // Emit push-to-talk specific event
             this.socket.emit('push_to_talk_stop');
         }
@@ -166,6 +165,10 @@ class SpeechRecognitionHandler {
                 
                 finalTranscript += transcript;
                 if (finalTranscript.trim().length > 0) {
+                    // Stop listening if the command contains "stop"
+                    if (transcript.toLowerCase().includes('stop')) {
+                        this.stop();
+                    }
                     this.socket.emit('transcript', { transcript: transcript });
                 }
             } else {

@@ -23,21 +23,37 @@ document.body.addEventListener('click', initializeAudioContext);
 
 function toggleListening() {
     const btn = document.getElementById('listenBtn');
+    const statusElement = document.getElementById('listening-status');
     const isListening = btn.classList.contains('btn-danger');
     
     if (isListening) {
         // Stop listening
         speechHandler.stop();
-        btn.innerHTML = '<i class="bi bi-mic-fill"></i> Start Listening';
-        btn.classList.remove('btn-danger');
-        btn.classList.add('btn-primary');
+        updateListeningUI(false);
     } else {
         // Start listening
         socketHandler.stopCurrentAudio();
         speechHandler.start();
+        updateListeningUI(true);
+    }
+}
+
+function updateListeningUI(isListening) {
+    const btn = document.getElementById('listenBtn');
+    const statusElement = document.getElementById('listening-status');
+    
+    if (isListening) {
         btn.innerHTML = '<i class="bi bi-mic-mute-fill"></i> Stop Listening';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-danger');
+        statusElement.textContent = 'Listening';
+        statusElement.className = 'status-active';
+    } else {
+        btn.innerHTML = '<i class="bi bi-mic-fill"></i> Start Listening';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-primary');
+        statusElement.textContent = 'Not Listening';
+        statusElement.className = 'status-inactive';
     }
 }
 
@@ -93,4 +109,11 @@ window.onbeforeunload = function() {
     isPushToTalkPressed = false;
     speechHandler.stop();
     socketHandler.stopCurrentAudio();
-}; 
+};
+
+// Update the socket handler to use the new UI update function
+socket.on('status_update', (data) => {
+    if (!data.isPushToTalk) {
+        updateListeningUI(data.listening);
+    }
+}); 

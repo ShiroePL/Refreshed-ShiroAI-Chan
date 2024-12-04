@@ -24,6 +24,12 @@ logging.getLogger('groq').setLevel(logging.WARNING)
 
 # Only show important state changes
 def log_state_change(from_state, to_state):
+    # Skip logging push-to-talk related state changes
+    if hasattr(to_state, 'name'):  # Check if it's an enum
+        if to_state.name == 'LISTENING' and from_state.name == 'IDLE':
+            return  # Skip logging push-to-talk transitions
+        if to_state.name == 'IDLE' and from_state.name == 'LISTENING':
+            return  # Skip logging push-to-talk end transitions
     logger.info(f"Assistant State: {to_state.name}")
 
 class AssistantState(Enum):
@@ -129,11 +135,8 @@ class StatusOverlay:
 
     def set_state(self, state: AssistantState):
         try:
-            log_state_change(self.current_state, state)
             if self.root:
-                # Apply change directly instead of using after_idle
                 self._handle_state_change(state)
-                # Force update
                 self.root.update_idletasks()
             else:
                 self.command_queue.put(('set_state', state))

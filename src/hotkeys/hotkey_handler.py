@@ -23,12 +23,12 @@ class HotkeyHandler:
 
     def handle_push_to_talk_press(self, e):
         logger.debug("Push-to-talk pressed")
-        self.overlay.set_state(AssistantState.LISTENING)
+        if self.overlay.current_state != AssistantState.LISTENING:
+            self.overlay.set_state(AssistantState.LISTENING)
         self.socketio.emit('hotkey_push_to_talk_start')
 
     def handle_push_to_talk_release(self, e):
         logger.debug("Push-to-talk released")
-        # Only go to idle if we're not already processing or speaking
         if self.overlay.current_state == AssistantState.LISTENING:
             self.overlay.set_state(AssistantState.IDLE)
         self.socketio.emit('hotkey_push_to_talk_stop')
