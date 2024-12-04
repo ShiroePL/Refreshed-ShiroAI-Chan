@@ -3,15 +3,8 @@ from enum import Enum
 import queue
 from threading import Thread, Lock
 import logging
+from src.utils.logging_config import handle_error
 
-# Configure logging to be more concise
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s: %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
 # Disable debug logs from other modules
@@ -141,7 +134,7 @@ class StatusOverlay:
             else:
                 self.command_queue.put(('set_state', state))
         except Exception as e:
-            logger.error(f"Error setting state: {e}", exc_info=True)
+            handle_error(logger, e, "Setting overlay state")
 
     def _handle_state_change(self, state: AssistantState):
         try:
@@ -215,30 +208,37 @@ class StatusOverlay:
                 logger.debug("Update loop stopped - not running")
                 return
                 
-            # Handle any pending commands
-            try:
-                while True:
-                    command, *args = self.command_queue.get_nowait()
-                    if command == 'set_state':
-                        self._handle_state_change(args[0])
-            except queue.Empty:
-                pass
-
-            # Update pulse animation if needed
-            if self.pulsing:
-                self.update_pulse()
-
-            # Ensure window stays on top
-            if self.root:
-                self.root.lift()
-                self.root.attributes('-topmost', True)
-
-            # Schedule the next update
-            if self.running and self.root:
-                self.root.after(50, self.update_loop)
+            self._process_command_queue()
+            self._update_pulse_if_needed()
+            self._ensure_window_on_top()
+            self._schedule_next_update()
                 
         except Exception as e:
-            logger.error(f"Error in update loop: {e}", exc_info=True)
+            handle_error(logger, e, "Overlay update loop")
+
+    def _process_command_queue(self):
+        try:
+            while True:
+                command, *args = self.command_queue.get_nowait()
+                if command == 'set_state':
+                    self._handle_state_change(args[0])
+        except queue.Empty:
+            pass
+        except Exception as e:
+            handle_error(logger, e, "Processing command queue", silent=True)
+
+    def _update_pulse_if_needed(self):
+        if self.pulsing:
+            self.update_pulse()
+
+    def _ensure_window_on_top(self):
+        if self.root:
+            self.root.lift()
+            self.root.attributes('-topmost', True)
+
+    def _schedule_next_update(self):
+        if self.running and self.root:
+            self.root.after(50, self.update_loop)
 
     def close(self):
         try:

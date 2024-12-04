@@ -1,3 +1,9 @@
+from src.utils.logging_config import setup_logging
+import logging
+
+# Setup logging first thing
+logger = setup_logging()
+
 from dotenv import load_dotenv
 from src.app_instance import socketio, app
 from src.overlay.status_overlay import StatusOverlay, AssistantState
@@ -15,10 +21,10 @@ def start_overlay():
     """Start the overlay window"""
     global overlay_started
     if not overlay_started:
-        print("Starting overlay...")
+        logger.info("Starting overlay...")
         overlay.setup_gui()
         overlay_started = True
-        print("Overlay started")
+        logger.info("Overlay started")
         overlay.set_state(AssistantState.IDLE)
         overlay.root.mainloop()
 
@@ -35,4 +41,7 @@ def before_request():
         time.sleep(0.5)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    try:
+        socketio.run(app, debug=True)
+    except Exception as e:
+        handle_error(logger, e, "Application startup")
