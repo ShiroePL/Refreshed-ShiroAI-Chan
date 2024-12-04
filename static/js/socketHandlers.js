@@ -17,11 +17,14 @@ class SocketHandler {
     stopCurrentAudio() {
         if (this.currentSource) {
             this.currentSource.stop();
+            this.currentSource.disconnect();
             this.currentSource = null;
-            
-            if (this.pendingVoiceDisable) {
-                this.completeVoiceDisable();
-            }
+        }
+        // Clear the buffer reference to allow garbage collection
+        this.currentAudioBuffer = null;
+        
+        if (this.pendingVoiceDisable) {
+            this.completeVoiceDisable();
         }
     }
 
@@ -53,6 +56,9 @@ class SocketHandler {
                 await this.audioContext.resume();
             }
 
+            // Stop any currently playing audio and clear references
+            this.stopCurrentAudio();
+
             // Convert base64 to array buffer
             const audioData = atob(base64Audio);
             const arrayBuffer = new ArrayBuffer(audioData.length);
@@ -76,7 +82,11 @@ class SocketHandler {
             // Handle audio end
             source.onended = () => {
                 if (this.currentSource === source) {
+                    // Clean up references
+                    this.currentSource.disconnect();
                     this.currentSource = null;
+                    this.currentAudioBuffer = null;
+                    
                     if (this.pendingVoiceDisable) {
                         this.completeVoiceDisable();
                     }
@@ -86,7 +96,13 @@ class SocketHandler {
             source.start(0);
         } catch (error) {
             console.error('Error playing audio:', error);
-            this.currentSource = null;
+            // Clean up on error
+            if (this.currentSource) {
+                this.currentSource.disconnect();
+                this.currentSource = null;
+            }
+            this.currentAudioBuffer = null;
+            
             if (this.pendingVoiceDisable) {
                 this.completeVoiceDisable();
             }
