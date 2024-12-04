@@ -81,12 +81,14 @@ class SpeechRecognitionHandler {
 
     start() {
         if (this.state === SpeechRecognitionHandler.States.IDLE) {
+            this.socket.emit('start_listening');
             this.startRecognition(SpeechRecognitionHandler.States.LISTENING);
         }
     }
 
     stop() {
         if (this.state !== SpeechRecognitionHandler.States.IDLE) {
+            this.socket.emit('stop_listening');
             try {
                 this.recognition.stop();
                 this.setState(SpeechRecognitionHandler.States.IDLE);

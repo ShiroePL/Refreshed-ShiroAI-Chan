@@ -87,6 +87,9 @@ class SocketHandler {
                     this.currentSource = null;
                     this.currentAudioBuffer = null;
                     
+                    // Emit audio finished event
+                    this.socket.emit('audio_finished');
+                    
                     if (this.pendingVoiceDisable) {
                         this.completeVoiceDisable();
                     }
@@ -102,6 +105,9 @@ class SocketHandler {
                 this.currentSource = null;
             }
             this.currentAudioBuffer = null;
+            
+            // Emit audio finished event even on error
+            this.socket.emit('audio_finished');
             
             if (this.pendingVoiceDisable) {
                 this.completeVoiceDisable();

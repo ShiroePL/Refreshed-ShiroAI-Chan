@@ -47,6 +47,8 @@ function toggleVoice() {
 
 function stopSpeaking() {
     socketHandler.stopCurrentAudio();
+    // Emit audio finished event to ensure server state is updated
+    socket.emit('audio_finished');
 }
 
 function startPushToTalk() {

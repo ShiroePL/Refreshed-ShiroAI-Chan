@@ -21,7 +21,11 @@ def handle_transcript(data):
     if hotkey_handler and response.get('audio'):
         hotkey_handler.overlay.set_state(AssistantState.SPEAKING)
     else:
-        hotkey_handler.overlay.set_state(AssistantState.IDLE)
+        # If no audio response, return to previous state
+        if assistant.listening:
+            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+        else:
+            hotkey_handler.overlay.set_state(AssistantState.IDLE)
     
     emit('response', {
         'text': response['text'],

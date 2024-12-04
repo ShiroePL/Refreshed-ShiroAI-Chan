@@ -51,6 +51,7 @@ class StatusOverlay:
         self.running = True
         self.root = None
         self.setup_pending = True
+        self.current_state = AssistantState.IDLE
         StatusOverlay._instance = self
         print("StatusOverlay initialized")
 
