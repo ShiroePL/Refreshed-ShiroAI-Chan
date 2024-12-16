@@ -165,11 +165,29 @@ class SpeechRecognitionHandler {
                 
                 finalTranscript += transcript;
                 if (finalTranscript.trim().length > 0) {
+                    // Check for trigger word when in continuous listening mode
+                    if (this.state === SpeechRecognitionHandler.States.LISTENING) {
+                        const triggerWord = 'hi shiro' || 'hi Cheryl' || 'hi shiroe';
+                        if (transcript.toLowerCase().includes(triggerWord)) {
+                            // Extract everything after the trigger word
+                            const command = transcript.toLowerCase()
+                                .split(triggerWord)
+                                .pop()
+                                .trim();
+                                
+                            if (command) {
+                                this.socket.emit('transcript', { transcript: command });
+                            }
+                        }
+                    } else if (this.state === SpeechRecognitionHandler.States.PUSH_TO_TALK) {
+                        // For push-to-talk, send everything without trigger word
+                        this.socket.emit('transcript', { transcript: transcript });
+                    }
+
                     // Stop listening if the command contains "stop"
                     if (transcript.toLowerCase().includes('stop')) {
                         this.stop();
                     }
-                    this.socket.emit('transcript', { transcript: transcript });
                 }
             } else {
                 interimTranscript += transcript;

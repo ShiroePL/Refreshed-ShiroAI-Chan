@@ -46,7 +46,7 @@ function updateListeningUI(isListening) {
         btn.innerHTML = '<i class="bi bi-mic-mute-fill"></i> Stop Listening';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-danger');
-        statusElement.textContent = 'Listening';
+        statusElement.textContent = 'Listening for "Hi Shiro"';
         statusElement.className = 'status-active';
     } else {
         btn.innerHTML = '<i class="bi bi-mic-fill"></i> Start Listening';
