@@ -16,16 +16,16 @@
                         <h1 class="text-center mb-4">Voice Assistant Interface</h1>
                         
                         <div class="d-flex justify-content-center gap-2 mb-4">
-                            <button onclick="toggleListening()" id="listenBtn" class="btn btn-primary">
+                            <button id="listenBtn" class="btn btn-primary" data-action="toggle-listen">
                                 <i class="bi bi-mic-fill"></i> Toggle Listen
                             </button>
-                            <button id="pushToTalkBtn" class="btn btn-info" onmousedown="startPushToTalk()" onmouseup="stopPushToTalk()" ontouchstart="startPushToTalk()" ontouchend="stopPushToTalk()">
+                            <button id="pushToTalkBtn" class="btn btn-info" data-action="push-to-talk">
                                 <i class="bi bi-mic-fill"></i> Push to Talk
                             </button>
-                            <button onclick="toggleVoice()" id="voiceToggleBtn" class="btn btn-success">
+                            <button id="voiceToggleBtn" class="btn btn-success" data-action="toggle-voice">
                                 <i class="bi bi-volume-up-fill"></i> Voice On
                             </button>
-                            <button onclick="stopSpeaking()" id="stopSpeakingBtn" class="btn btn-warning">
+                            <button id="stopSpeakingBtn" class="btn btn-warning" data-action="stop-speaking">
                                 <i class="bi bi-stop-fill"></i> Stop Speaking
                             </button>
                         </div>
@@ -63,8 +63,23 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script src="{{ url_for('static', filename='js/speechRecognition.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/socketHandlers.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- Socket.IO must be loaded first -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    
+    <!-- Load our module scripts in correct order -->
+    <script type="module" src="{{ url_for('static', filename='js/socketHandlers.js') }}"></script>
+    <!-- Load states first since it's a dependency -->
+    <script type="module" src="{{ url_for('static', filename='js/speech/states.js') }}"></script>
+    <!-- Then load modules that depend on states -->
+    <script type="module" src="{{ url_for('static', filename='js/speech/uiHandler.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/speech/audioFeedback.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/speech/recognitionCore.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/speech/modeHandlers.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/speech/speechRecognition.js') }}"></script>
+    <!-- Load init last -->
+    <script type="module" src="{{ url_for('static', filename='js/speech/init.js') }}"></script>
+    
+    <!-- Load our non-module scripts with defer -->
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 </body>
 </html> 
