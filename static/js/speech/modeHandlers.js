@@ -19,6 +19,7 @@ export class ModeHandlers {
 
             switchToCommandMode(command);
         }
+        return triggered;
     }
 
     static handleCommandMode(transcript, socket, switchToTriggerMode) {

@@ -38,9 +38,10 @@ export class SpeechRecognitionHandler {
         if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
             setTimeout(() => {
                 if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
+                    console.log('Restarting recognition in trigger mode');
                     this.startRecognition();
                 }
-            }, 200);
+            }, 100);
         } else {
             this.setState(RecognitionStates.IDLE);
         }
@@ -48,6 +49,12 @@ export class SpeechRecognitionHandler {
 
     handleError(event) {
         console.error("Recognition error:", event.error);
+        
+        if (event.error === 'no-speech' && this.socketHandler?.isCurrentlyPlaying()) {
+            this.startRecognition();
+            return;
+        }
+
         this.core.cleanup();
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
@@ -65,17 +72,39 @@ export class SpeechRecognitionHandler {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
                 if (this.socketHandler) {
-                    this.socketHandler.stopCurrentAudio();
+                    const stopWords = ['stop', 'ストップ', 'すとっぷ', 'とめて', 'やめて'];
+                    const isStopCommand = stopWords.some(word => 
+                        transcript.toLowerCase().includes(word.toLowerCase())
+                    );
+
+                    if (this.socketHandler.isCurrentlyPlaying() && isStopCommand) {
+                        this.socketHandler.stopCurrentAudio();
+                        this.switchToTriggerMode();
+                        return;
+                    }
                 }
                 
                 finalTranscript += transcript;
                 if (finalTranscript.trim().length > 0) {
                     switch (this.state) {
                         case RecognitionStates.LISTENING_FOR_TRIGGER:
-                            ModeHandlers.handleTriggerMode(transcript, this.switchToCommandMode.bind(this));
+                            const wasTriggered = ModeHandlers.handleTriggerMode(
+                                transcript, 
+                                this.switchToCommandMode.bind(this)
+                            );
+                            if (!wasTriggered) {
+                                console.log('No trigger word detected, continuing to listen...');
+                                this.core.cleanup();
+                                this.setupRecognition('ja-JP');
+                                this.startRecognition();
+                            }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
-                            ModeHandlers.handleCommandMode(transcript, this.socket, this.switchToTriggerMode.bind(this));
+                            ModeHandlers.handleCommandMode(
+                                transcript, 
+                                this.socket, 
+                                this.switchToTriggerMode.bind(this)
+                            );
                             break;
                         case RecognitionStates.PUSH_TO_TALK:
                             ModeHandlers.handlePushToTalk(transcript, this.socket);
@@ -98,11 +127,12 @@ export class SpeechRecognitionHandler {
         this.setupRecognition('en-US');
         this.setState(RecognitionStates.LISTENING_FOR_COMMAND);
         
+        AudioFeedback.playSwitch();
+        
         if (initialCommand && initialCommand.trim()) {
             this.socket.emit('transcript', { transcript: initialCommand });
         }
 
-        AudioFeedback.playSwitch();
         this.startRecognition();
     }
 
@@ -142,9 +172,9 @@ export class SpeechRecognitionHandler {
         this.socket.emit('stop_listening');
     }
 
-    startRecognition() {
+    async startRecognition() {
         try {
-            this.core.start();
+            await this.core.start();
         } catch (error) {
             console.error("Error starting recognition:", error);
             this.setState(RecognitionStates.ERROR);

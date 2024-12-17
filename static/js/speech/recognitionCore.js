@@ -4,6 +4,7 @@ import { UIHandler } from './uiHandler.js';
 export class RecognitionCore {
     constructor() {
         this.recognition = null;
+        this.isRecognizing = false;
     }
 
     setup(language, onStart, onEnd, onResult, onError) {
@@ -14,8 +15,16 @@ export class RecognitionCore {
         this.recognition.continuous = true;
         this.recognition.lang = language;
 
-        this.recognition.onstart = onStart;
-        this.recognition.onend = onEnd;
+        this.recognition.onstart = () => {
+            this.isRecognizing = true;
+            if (onStart) onStart();
+        };
+
+        this.recognition.onend = () => {
+            this.isRecognizing = false;
+            if (onEnd) onEnd();
+        };
+
         this.recognition.onresult = onResult;
         this.recognition.onerror = onError;
     }
@@ -23,7 +32,9 @@ export class RecognitionCore {
     cleanup() {
         if (this.recognition) {
             try {
-                this.recognition.stop();
+                if (this.isRecognizing) {
+                    this.recognition.stop();
+                }
             } catch (e) {
                 console.log('Cleanup stop error:', e);
             }
@@ -33,11 +44,30 @@ export class RecognitionCore {
             this.recognition.onerror = null;
             this.recognition = null;
         }
+        this.isRecognizing = false;
     }
 
     start() {
+        if (this.isRecognizing) {
+            console.log('Recognition already active, stopping first...');
+            return new Promise((resolve) => {
+                const onEnd = () => {
+                    this.recognition.onend = null;
+                    this.startImmediate();
+                    resolve();
+                };
+                this.recognition.onend = onEnd;
+                this.recognition.stop();
+            });
+        } else {
+            return this.startImmediate();
+        }
+    }
+
+    startImmediate() {
         try {
             this.recognition.start();
+            return Promise.resolve();
         } catch (error) {
             console.error("Error starting recognition:", error);
             throw error;
@@ -46,9 +76,15 @@ export class RecognitionCore {
 
     stop() {
         try {
-            this.recognition.stop();
+            if (this.isRecognizing) {
+                this.recognition.stop();
+            }
         } catch (error) {
             console.error("Error stopping recognition:", error);
         }
+    }
+
+    isActive() {
+        return this.isRecognizing;
     }
 } 

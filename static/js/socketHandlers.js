@@ -4,6 +4,7 @@ export class SocketHandler {
         this.audioContext = null;
         this.currentSource = null;
         this.voiceEnabled = true;
+        this.isPlaying = false;
     }
 
     initialize() {
@@ -16,7 +17,6 @@ export class SocketHandler {
             if (!this.voiceEnabled) return;
             
             try {
-                // Convert base64 to ArrayBuffer
                 const base64 = audioChunk.replace('data:audio/wav;base64,', '');
                 const binaryString = window.atob(base64);
                 const bytes = new Uint8Array(binaryString.length);
@@ -24,25 +24,34 @@ export class SocketHandler {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
 
-                // Decode the WAV data
                 this.audioContext.decodeAudioData(bytes.buffer, 
                     (decodedData) => {
-                        // Create and play the audio
                         const source = this.audioContext.createBufferSource();
                         source.buffer = decodedData;
                         source.connect(this.audioContext.destination);
                         
                         this.currentSource = source;
+                        this.isPlaying = true;
+
+                        // Add onended handler
+                        source.onended = () => {
+                            this.isPlaying = false;
+                            this.currentSource = null;
+                            this.socket.emit('audio_finished');
+                            console.log('Audio playback finished naturally');
+                        };
+
                         source.start(0);
-                        console.log('Playing audio chunk:', decodedData.length, 'samples');
+                        console.log('Started playing audio chunk:', decodedData.length, 'samples');
                     },
                     (error) => {
                         console.error('Error decoding audio data:', error);
+                        this.isPlaying = false;
                     }
                 );
             } catch (error) {
                 console.error('Error processing audio:', error);
-                console.error('Audio chunk type:', typeof audioChunk);
+                this.isPlaying = false;
             }
         });
 
@@ -64,11 +73,17 @@ export class SocketHandler {
         if (this.currentSource) {
             try {
                 this.currentSource.stop();
+                this.isPlaying = false;
+                this.currentSource = null;
+                this.socket.emit('audio_finished');
             } catch (e) {
                 console.log('Error stopping audio:', e);
             }
-            this.currentSource = null;
         }
+    }
+
+    isCurrentlyPlaying() {
+        return this.isPlaying;
     }
 
     toggleVoice() {
