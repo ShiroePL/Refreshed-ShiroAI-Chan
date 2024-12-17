@@ -5,6 +5,7 @@ export class RecognitionCore {
     constructor() {
         this.recognition = null;
         this.isRecognizing = false;
+        this.noSpeechTimeout = null;
     }
 
     setup(language, onStart, onEnd, onResult, onError) {
@@ -14,6 +15,10 @@ export class RecognitionCore {
         this.recognition.interimResults = true;
         this.recognition.continuous = true;
         this.recognition.lang = language;
+
+        if (typeof this.recognition.maxSilenceTime !== 'undefined') {
+            this.recognition.maxSilenceTime = 0;
+        }
 
         this.recognition.onstart = () => {
             this.isRecognizing = true;
@@ -26,10 +31,28 @@ export class RecognitionCore {
         };
 
         this.recognition.onresult = onResult;
-        this.recognition.onerror = onError;
+        this.recognition.onerror = (error) => {
+            if (this.noSpeechTimeout) {
+                clearTimeout(this.noSpeechTimeout);
+                this.noSpeechTimeout = null;
+            }
+            if (onError) onError(error);
+        };
+
+        this.recognition.onaudiostart = () => {
+            if (this.noSpeechTimeout) {
+                clearTimeout(this.noSpeechTimeout);
+                this.noSpeechTimeout = null;
+            }
+        };
     }
 
     cleanup() {
+        if (this.noSpeechTimeout) {
+            clearTimeout(this.noSpeechTimeout);
+            this.noSpeechTimeout = null;
+        }
+
         if (this.recognition) {
             try {
                 if (this.isRecognizing) {
@@ -42,6 +65,7 @@ export class RecognitionCore {
             this.recognition.onend = null;
             this.recognition.onstart = null;
             this.recognition.onerror = null;
+            this.recognition.onaudiostart = null;
             this.recognition = null;
         }
         this.isRecognizing = false;

@@ -19,6 +19,7 @@ export class SpeechRecognitionHandler {
 
     setState(newState) {
         console.log(`State transition: ${this.state} -> ${newState}`);
+        this.previousState = this.state;
         this.state = newState;
         UIHandler.updateStatus(newState);
     }
@@ -50,7 +51,11 @@ export class SpeechRecognitionHandler {
     handleError(event) {
         console.error("Recognition error:", event.error);
         
-        if (event.error === 'no-speech' && this.socketHandler?.isCurrentlyPlaying()) {
+        if (event.error === 'no-speech' && 
+            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
+            console.log('No speech detected, continuing to listen...');
+            this.core.cleanup();
+            this.setupRecognition('ja-JP');
             this.startRecognition();
             return;
         }
@@ -59,7 +64,14 @@ export class SpeechRecognitionHandler {
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
             if (this.state === RecognitionStates.ERROR) {
-                this.setState(RecognitionStates.IDLE);
+                if (this.state === RecognitionStates.ERROR) {
+                    if (this.previousState === RecognitionStates.LISTENING_FOR_TRIGGER) {
+                        console.log('Restarting trigger mode after error...');
+                        this.switchToTriggerMode();
+                    } else {
+                        this.setState(RecognitionStates.IDLE);
+                    }
+                }
             }
         }, 1000);
     }
