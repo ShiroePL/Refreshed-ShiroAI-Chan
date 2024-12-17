@@ -15,16 +15,48 @@ export class SocketHandler {
         this.socket.on('audio', (audioChunk) => {
             if (!this.voiceEnabled) return;
             
-            const audioData = new Float32Array(audioChunk);
-            const buffer = this.audioContext.createBuffer(1, audioData.length, 24000);
-            buffer.getChannelData(0).set(audioData);
-            
-            const source = this.audioContext.createBufferSource();
-            source.buffer = buffer;
-            source.connect(this.audioContext.destination);
-            
-            this.currentSource = source;
-            source.start(0);
+            try {
+                // Convert base64 to ArrayBuffer
+                const base64 = audioChunk.replace('data:audio/wav;base64,', '');
+                const binaryString = window.atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Decode the WAV data
+                this.audioContext.decodeAudioData(bytes.buffer, 
+                    (decodedData) => {
+                        // Create and play the audio
+                        const source = this.audioContext.createBufferSource();
+                        source.buffer = decodedData;
+                        source.connect(this.audioContext.destination);
+                        
+                        this.currentSource = source;
+                        source.start(0);
+                        console.log('Playing audio chunk:', decodedData.length, 'samples');
+                    },
+                    (error) => {
+                        console.error('Error decoding audio data:', error);
+                    }
+                );
+            } catch (error) {
+                console.error('Error processing audio:', error);
+                console.error('Audio chunk type:', typeof audioChunk);
+            }
+        });
+
+        // Add handler for the response that includes audio
+        this.socket.on('response', (data) => {
+            if (data.audio && this.voiceEnabled) {
+                // Emit the audio data to be played
+                this.socket.emit('audio', data.audio);
+            }
+        });
+
+        // Add handler for audio errors
+        this.socket.on('audio_error', (error) => {
+            console.error('Audio streaming error:', error);
         });
     }
 
@@ -50,6 +82,7 @@ export class SocketHandler {
             btn.innerHTML = '<i class="bi bi-volume-mute-fill"></i> Voice Off';
             btn.classList.remove('btn-success');
             btn.classList.add('btn-danger');
+            this.stopCurrentAudio(); // Stop any playing audio when voice is disabled
         }
     }
 } 

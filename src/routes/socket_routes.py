@@ -18,19 +18,26 @@ def handle_transcript(data):
     
     response = assistant.get_response(transcript)
     
+    # Debug log for audio data
+    if response.get('audio'):
+        logger.debug(f"Audio data present, length: {len(response['audio'])}")
+        # Emit audio data separately
+        emit('audio', response['audio'])
+    else:
+        logger.debug("No audio data in response")
+    
     # Set speaking state only if voice is enabled
     if hotkey_handler and response.get('audio'):
         hotkey_handler.overlay.set_state(AssistantState.SPEAKING)
     else:
-        # If no audio response, return to previous state
         if assistant.listening:
             hotkey_handler.overlay.set_state(AssistantState.LISTENING)
         else:
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
     
+    # Send text response
     emit('response', {
         'text': response['text'],
-        'audio': response['audio'],
         'transcript': transcript
     })
 
@@ -51,7 +58,7 @@ def handle_stop_listening():
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
         emit('status_update', {'listening': False})
     except Exception as e:
-        handle_error(logger, e, "Stop listening handler")
+        handle_error(logger, e, "Stop listen handler")
 
 @socketio.on('audio_finished')
 def handle_audio_finished():

@@ -58,9 +58,25 @@ function setupSocketListeners(socket) {
         }
     });
 
-    // Add response handler
+    // Update response handlers
     socket.on('response', (data) => {
-        document.getElementById('response').textContent = data.response;
+        // Update text response
+        document.getElementById('response').textContent = data.text || data.response || 'No response';
+        console.log('Received response:', data); // Add this for debugging
+    });
+
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
+        document.getElementById('response').textContent = 'Error: ' + (error.message || 'Unknown error');
+    });
+
+    // Add speaking status handler
+    socket.on('speaking_status', (data) => {
+        const statusElement = document.getElementById('listening-status');
+        if (data.speaking) {
+            statusElement.textContent = 'Assistant is speaking...';
+            statusElement.className = 'status-active';
+        }
     });
 }
 
