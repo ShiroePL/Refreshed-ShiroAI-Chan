@@ -59,7 +59,7 @@ export class RecognitionCore {
                     this.recognition.stop();
                 }
             } catch (e) {
-                console.log('Cleanup stop error:', e);
+                // Don't log cleanup errors
             }
             this.recognition.onresult = null;
             this.recognition.onend = null;
@@ -73,7 +73,7 @@ export class RecognitionCore {
 
     start() {
         if (this.isRecognizing) {
-            console.log('Recognition already active, stopping first...');
+            // Silently restart without logging
             return new Promise((resolve) => {
                 const onEnd = () => {
                     this.recognition.onend = null;

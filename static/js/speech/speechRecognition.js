@@ -27,7 +27,11 @@ export class SpeechRecognitionHandler {
     setupRecognition(language) {
         this.core.setup(
             language,
-            () => console.log(`Recognition started (${language})`),
+            () => {
+                if (this.state === RecognitionStates.IDLE || !this.state) {
+                    console.log(`Recognition started (${language})`);
+                }
+            },
             this.handleRecognitionEnd.bind(this),
             this.handleResult.bind(this),
             this.handleError.bind(this)
@@ -35,11 +39,13 @@ export class SpeechRecognitionHandler {
     }
 
     handleRecognitionEnd() {
-        console.log('Recognition ended');
+        if (this.state !== RecognitionStates.LISTENING_FOR_TRIGGER) {
+            console.log('Recognition ended');
+        }
+        
         if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
             setTimeout(() => {
                 if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
-                    console.log('Restarting recognition in trigger mode');
                     this.startRecognition();
                 }
             }, 100);
@@ -49,11 +55,12 @@ export class SpeechRecognitionHandler {
     }
 
     handleError(event) {
-        console.error("Recognition error:", event.error);
+        if (event.error !== 'no-speech') {
+            console.error("Recognition error:", event.error);
+        }
         
         if (event.error === 'no-speech' && 
             (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
-            console.log('No speech detected, continuing to listen...');
             this.core.cleanup();
             this.setupRecognition('ja-JP');
             this.startRecognition();
@@ -64,13 +71,10 @@ export class SpeechRecognitionHandler {
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
             if (this.state === RecognitionStates.ERROR) {
-                if (this.state === RecognitionStates.ERROR) {
-                    if (this.previousState === RecognitionStates.LISTENING_FOR_TRIGGER) {
-                        console.log('Restarting trigger mode after error...');
-                        this.switchToTriggerMode();
-                    } else {
-                        this.setState(RecognitionStates.IDLE);
-                    }
+                if (this.previousState === RecognitionStates.LISTENING_FOR_TRIGGER) {
+                    this.switchToTriggerMode();
+                } else {
+                    this.setState(RecognitionStates.IDLE);
                 }
             }
         }, 1000);
