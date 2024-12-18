@@ -92,6 +92,7 @@ export class SpeechRecognitionHandler {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
+                // Check for stop command first
                 if (this.socketHandler) {
                     const stopWords = ['stop', 'ストップ', 'すとっぷ', 'とめて', 'やめて'];
                     const isStopCommand = stopWords.some(word => 
@@ -114,13 +115,17 @@ export class SpeechRecognitionHandler {
                                 this.switchToCommandMode.bind(this)
                             );
                             if (!wasTriggered) {
-                                console.log('No trigger word detected, continuing to listen...');
                                 this.core.cleanup();
                                 this.setupRecognition('ja-JP');
                                 this.startRecognition();
                             }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
+                            if (transcript === 'shutdown') {
+                                this.core.cleanup();
+                                this.setState(RecognitionStates.IDLE);
+                                return;
+                            }
                             ModeHandlers.handleCommandMode(
                                 transcript, 
                                 this.socket, 
@@ -143,8 +148,16 @@ export class SpeechRecognitionHandler {
         }
     }
 
-    switchToCommandMode(initialCommand) {
+    switchToCommandMode(initialCommand, isDirectShutdown = false) {
         this.core.cleanup();
+        
+        if (isDirectShutdown) {
+            // For direct shutdown, skip command mode entirely
+            this.socket.emit('stop_listening');
+            this.setState(RecognitionStates.IDLE);
+            return;
+        }
+
         this.setupRecognition('en-US');
         this.setState(RecognitionStates.LISTENING_FOR_COMMAND);
         
@@ -199,6 +212,23 @@ export class SpeechRecognitionHandler {
         } catch (error) {
             console.error("Error starting recognition:", error);
             this.setState(RecognitionStates.ERROR);
+        }
+    }
+
+    shutdown() {
+        this.core.cleanup();
+        this.setState(RecognitionStates.IDLE);
+        // Clear any displayed transcripts
+        document.getElementById('interim').textContent = '';
+        document.getElementById('final').textContent = '';
+        // Don't try to restart recognition
+        this.state = RecognitionStates.IDLE;
+        // Update the button UI
+        const btn = document.getElementById('listenBtn');
+        if (btn) {
+            btn.innerHTML = '<i class="bi bi-mic-fill"></i> Start Listening';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-primary');
         }
     }
 } 

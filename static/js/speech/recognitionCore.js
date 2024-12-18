@@ -6,6 +6,8 @@ export class RecognitionCore {
         this.recognition = null;
         this.isRecognizing = false;
         this.noSpeechTimeout = null;
+        this.retryCount = 0;
+        this.maxRetries = 3;
     }
 
     setup(language, onStart, onEnd, onResult, onError) {
@@ -55,36 +57,46 @@ export class RecognitionCore {
 
         if (this.recognition) {
             try {
+                // Remove all event listeners first
+                this.recognition.onresult = null;
+                this.recognition.onend = null;
+                this.recognition.onstart = null;
+                this.recognition.onerror = null;
+                this.recognition.onaudiostart = null;
+                
                 if (this.isRecognizing) {
                     this.recognition.stop();
                 }
+                
+                // Properly dispose of the recognition object
+                this.recognition.abort();
             } catch (e) {
-                // Don't log cleanup errors
+                console.warn("Cleanup warning:", e);
+            } finally {
+                this.recognition = null;
+                this.isRecognizing = false;
+                this.retryCount = 0;
             }
-            this.recognition.onresult = null;
-            this.recognition.onend = null;
-            this.recognition.onstart = null;
-            this.recognition.onerror = null;
-            this.recognition.onaudiostart = null;
-            this.recognition = null;
         }
-        this.isRecognizing = false;
     }
 
-    start() {
-        if (this.isRecognizing) {
-            // Silently restart without logging
-            return new Promise((resolve) => {
-                const onEnd = () => {
-                    this.recognition.onend = null;
-                    this.startImmediate();
-                    resolve();
-                };
-                this.recognition.onend = onEnd;
-                this.recognition.stop();
-            });
-        } else {
+    async start() {
+        try {
+            if (this.isRecognizing) {
+                await new Promise((resolve) => {
+                    const onEnd = () => {
+                        this.recognition.onend = null;
+                        this.cleanup();
+                        resolve();
+                    };
+                    this.recognition.onend = onEnd;
+                    this.recognition.stop();
+                });
+            }
             return this.startImmediate();
+        } catch (error) {
+            this.cleanup();
+            throw error;
         }
     }
 

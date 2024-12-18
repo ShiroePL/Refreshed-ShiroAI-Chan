@@ -56,7 +56,27 @@ def handle_stop_listening():
         assistant.listening = False
         if hotkey_handler:
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
+            
+        # Send a special goodbye message before stopping
+        response = {
+            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
+            'audio': assistant.text_to_speech("さようなら! I'll be here when you need me again!")
+        }
+        
+        # Send the goodbye message and wait for audio to finish
+        emit('response', {
+            'text': response['text'],
+            'transcript': 'sayounara'
+        })
+        
+        if response.get('audio'):
+            emit('audio', response['audio'])
+        
+        # Update UI status
         emit('status_update', {'listening': False})
+        
+        # Signal complete shutdown after response is sent
+        emit('shutdown_complete')
     except Exception as e:
         handle_error(logger, e, "Stop listen handler")
 

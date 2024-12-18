@@ -88,4 +88,31 @@ document.body.addEventListener('click', () => {
     if (window.socketHandler?.audioContext?.state === 'suspended') {
         window.socketHandler.audioContext.resume();
     }
+});
+
+// Add to initializeApp function
+window.addEventListener('beforeunload', () => {
+    if (window.socketHandler) {
+        window.socketHandler.cleanup();
+    }
+    if (window.speechHandler) {
+        window.speechHandler.core.cleanup();
+    }
+});
+
+// Add error recovery
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    try {
+        if (window.socketHandler) {
+            window.socketHandler.cleanup();
+            window.socketHandler.initialize().catch(console.error);
+        }
+        if (window.speechHandler) {
+            window.speechHandler.core.cleanup();
+            window.speechHandler.initialize();
+        }
+    } catch (e) {
+        console.error('Error recovery failed:', e);
+    }
 }); 

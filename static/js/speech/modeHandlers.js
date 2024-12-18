@@ -16,8 +16,29 @@ export class ModeHandlers {
             'おはようシロ',  // Good morning Shiro in hiragana
             'オハヨウシロ'   // Good morning Shiro in katakana
         ];
+
+        const shutdownWords = [
+            'sayounara',     // Goodbye in romaji
+            'さようなら',     // Goodbye in hiragana
+            'サヨウナラ',     // Goodbye in katakana
+            'さようならシロ', // Goodbye Shiro in hiragana
+            'サヨウナラシロ'  // Goodbye Shiro in katakana
+        ];
+
         const lowerTranscript = transcript.toLowerCase();
         
+        // Check for shutdown command first
+        const isShutdown = shutdownWords.some(word => 
+            lowerTranscript.includes(word.toLowerCase())
+        );
+
+        if (isShutdown) {
+            // Directly emit stop_listening instead of going through command mode
+            switchToCommandMode('shutdown', true);
+            return true;
+        }
+
+        // Check for regular trigger words
         const triggered = triggerWords.some(trigger => 
             lowerTranscript.includes(trigger.toLowerCase())
         );
@@ -34,6 +55,11 @@ export class ModeHandlers {
     }
 
     static handleCommandMode(transcript, socket, switchToTriggerMode) {
+        // Special handling for shutdown command
+        if (transcript === 'shutdown') {
+            socket.emit('stop_listening');
+            return; // Don't switch modes, let the shutdown_complete event handle it
+        }
         socket.emit('transcript', { transcript: transcript });
         switchToTriggerMode();
     }
