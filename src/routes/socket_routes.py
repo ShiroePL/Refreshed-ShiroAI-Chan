@@ -89,4 +89,18 @@ def handle_push_to_talk_stop():
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Push-to-talk stop handler", silent=True)
+
+@socketio.on('state_change')
+def handle_state_change(data):
+    """Handle state change events from frontend."""
+    try:
+        new_state = data.get('state')
+        if new_state and hotkey_handler:
+            if new_state == 'LISTENING_FOR_COMMAND':
+                hotkey_handler.overlay.set_state(AssistantState.LISTENING_COMMAND)
+            elif new_state == 'LISTENING_FOR_TRIGGER':
+                hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+            # ... other states remain the same
+    except Exception as e:
+        handle_error(logger, e, "State change handler", silent=True)
     

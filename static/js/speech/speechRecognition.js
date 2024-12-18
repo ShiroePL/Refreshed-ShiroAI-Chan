@@ -22,6 +22,11 @@ export class SpeechRecognitionHandler {
         this.previousState = this.state;
         this.state = newState;
         UIHandler.updateStatus(newState);
+        
+        // Emit state change to backend for overlay updates
+        if (this.socket) {
+            this.socket.emit('state_change', { state: newState });
+        }
     }
 
     setupRecognition(language) {

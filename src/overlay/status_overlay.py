@@ -26,10 +26,11 @@ def log_state_change(from_state, to_state):
     logger.info(f"Assistant State: {to_state.name}")
 
 class AssistantState(Enum):
-    IDLE = "red"
-    LISTENING = "blue"
-    PROCESSING = "orange"
-    SPEAKING = "pink"
+    IDLE = "IDLE"
+    LISTENING = "LISTENING"
+    LISTENING_COMMAND = "LISTENING_COMMAND"  # New state for command mode
+    PROCESSING = "PROCESSING"
+    SPEAKING = "SPEAKING"
 
 class StatusOverlay:
     _instance = None
@@ -42,6 +43,35 @@ class StatusOverlay:
                 cls._instance = cls()
             return cls._instance
     
+    def load_icon(self, color):
+        """Create a colored circle as an icon."""
+        icon_size = 60
+        padding = 5
+        
+        # Create a temporary canvas to draw the icon
+        temp_canvas = tk.Canvas(width=icon_size, height=icon_size, 
+                              bg='black', highlightthickness=0)
+        
+        # Map state names to colors
+        color_map = {
+            "gray": "#808080",    # Idle
+            "blue": "#0000FF",    # Listening for trigger
+            "green": "#00FF00",   # Listening for command
+            "yellow": "#FFA500",  # Processing
+            "purple": "#FF00FF"   # Speaking
+        }
+        
+        # Draw the circle
+        temp_canvas.create_oval(
+            padding, padding,
+            icon_size-padding, icon_size-padding,
+            fill=color_map.get(color, "#808080"),  # Default to gray if color not found
+            outline="white",
+            width=2
+        )
+        
+        return temp_canvas
+    
     def __init__(self):
         if StatusOverlay._instance is not None:
             raise Exception("This class is a singleton!")
@@ -53,6 +83,19 @@ class StatusOverlay:
         self.current_state = AssistantState.IDLE
         StatusOverlay._instance = self
         print("StatusOverlay initialized")
+        
+        # Create the root window temporarily for icon creation
+        temp_root = tk.Tk()
+        
+        # Load all icon states
+        self.gray_icon = self.load_icon("gray")
+        self.blue_icon = self.load_icon("blue")
+        self.green_icon = self.load_icon("green")
+        self.yellow_icon = self.load_icon("yellow")
+        self.purple_icon = self.load_icon("purple")
+        
+        # Destroy temporary root
+        temp_root.destroy()
 
     def setup_gui(self):
         if not self.setup_pending:
@@ -151,7 +194,15 @@ class StatusOverlay:
                 self.pulse_increasing = True
             else:
                 try:
-                    self.canvas.itemconfig(self.circle, fill=state.value)
+                    # Map states to colors
+                    color_map = {
+                        AssistantState.IDLE: "#808080",        # Gray
+                        AssistantState.LISTENING: "#0000FF",   # Blue
+                        AssistantState.LISTENING_COMMAND: "#00FF00",  # Green
+                        AssistantState.SPEAKING: "#FF00FF",    # Purple
+                    }
+                    color = color_map.get(state, state.value)
+                    self.canvas.itemconfig(self.circle, fill=color)
                 except Exception as e:
                     logger.error(f"Failed to set circle color: {e}")
             
@@ -271,3 +322,15 @@ class StatusOverlay:
         
         if self.root:
             self.root.after(1000, cycle_colors)
+
+    def update_icon_color(self, state):
+        if state == AssistantState.IDLE:
+            self.icon_label.configure(image=self.gray_icon)
+        elif state == AssistantState.LISTENING:
+            self.icon_label.configure(image=self.blue_icon)
+        elif state == AssistantState.LISTENING_COMMAND:
+            self.icon_label.configure(image=self.green_icon)  # New bright green icon for command mode
+        elif state == AssistantState.PROCESSING:
+            self.icon_label.configure(image=self.yellow_icon)
+        elif state == AssistantState.SPEAKING:
+            self.icon_label.configure(image=self.purple_icon)
