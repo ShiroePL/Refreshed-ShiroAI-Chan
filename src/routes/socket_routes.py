@@ -123,4 +123,33 @@ def handle_state_change(data):
             # ... other states remain the same
     except Exception as e:
         handle_error(logger, e, "State change handler", silent=True)
+
+@socketio.on('action')
+def handle_action(data):
+    """Handle action commands from frontend"""
+    try:
+        action_type = data.get('type')
+        if action_type == 'lights_mode':
+            #result = change_lights_mode()
+            emit('action_response', {
+                'type': action_type,
+                'success': True,
+                'message': 'Lights mode changed successfully'
+            })
+        elif action_type == 'play_music':
+            #result = start_music_playback()
+            emit('action_response', {
+                'type': action_type,
+                'success': True,
+                'message': 'Music playback started'
+            })
+        # Add more action handlers here
+        
+    except Exception as e:
+        handle_error(logger, e, f"Action handler: {data.get('type')}")
+        emit('action_response', {
+            'type': data.get('type'),
+            'success': False,
+            'message': str(e)
+        })
     

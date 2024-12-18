@@ -1,46 +1,37 @@
-import { AudioFeedback } from './audioFeedback.js';
-import { UIHandler } from './uiHandler.js';
-import { RecognitionStates } from './states.js';
+import { CommandRegistry } from './commands.js';
 
 export class ModeHandlers {
     static handleTriggerMode(transcript, switchToCommandMode) {
         const triggerWords = [
-            'hi shiro', 
-            'はい シロ', 
-            'hi シロ', 
-            'はいシロ', 
-            'はいしろ', 
-            'ハイシロ',
-            'おはよう',  // Good morning in hiragana
-            'オハヨウ',  // Good morning in katakana
-            'おはようシロ',  // Good morning Shiro in hiragana
-            'オハヨウシロ'   // Good morning Shiro in katakana
+            'hi shiro', 'はい シロ', 'hi シロ', 'はいシロ', 'はいしろ', 'ハイシロ',
+            'おはよう', 'オハヨウ', 'おはようシロ', 'オハヨウシロ'
         ];
 
-        const shutdownWords = [
-            'sayounara',     // Goodbye in romaji
-            'さようなら',     // Goodbye in hiragana
-            'サヨウナラ',     // Goodbye in katakana
-            'さようならシロ', // Goodbye Shiro in hiragana
-            'サヨウナラシロ'  // Goodbye Shiro in katakana
-        ];
-
-        const lowerTranscript = transcript.toLowerCase();
-        
         // Check for shutdown command first
+        const shutdownWords = ['sayounara', 'さようなら', 'さよなら', 'サヨウナラ', 'さようならシロ', 'サヨウナラシロ'];
         const isShutdown = shutdownWords.some(word => 
-            lowerTranscript.includes(word.toLowerCase())
+            transcript.toLowerCase().includes(word.toLowerCase())
+        );
+
+        // Check for stop command
+        const stopWords = ['stop', 'ストップ', 'スタップ', 'すとっぷ', 'とめて', 'やめて'];
+        const isStopCommand = stopWords.some(word => 
+            transcript.toLowerCase().includes(word.toLowerCase())
         );
 
         if (isShutdown) {
-            // Directly emit stop_listening instead of going through command mode
             switchToCommandMode('shutdown', true);
             return true;
         }
 
-        // Check for regular trigger words
+        if (isStopCommand) {
+            console.log('Stop command detected in trigger mode');
+            switchToCommandMode('stop', true);  // Add second parameter to indicate special command
+            return true;
+        }
+
         const triggered = triggerWords.some(trigger => 
-            lowerTranscript.includes(trigger.toLowerCase())
+            transcript.toLowerCase().includes(trigger.toLowerCase())
         );
 
         if (triggered) {
@@ -54,17 +45,34 @@ export class ModeHandlers {
         return triggered;
     }
 
-    static handleCommandMode(transcript, socket, switchToTriggerMode) {
-        // Special handling for shutdown command
-        if (transcript === 'shutdown') {
-            socket.emit('stop_listening');
-            return; // Don't switch modes, let the shutdown_complete event handle it
-        }
-        socket.emit('transcript', { transcript: transcript });
-        switchToTriggerMode();
-    }
+    static handleCommandMode(transcript, socket, socketHandler, switchToTriggerMode) {
+        try {
+            // Special handling for direct commands
+            if (transcript === 'stop') {
+                console.log('Processing stop command');
+                if (socketHandler?.isCurrentlyPlaying()) {
+                    socketHandler.stopCurrentAudio();
+                }
+                switchToTriggerMode();
+                return;
+            }
 
-    static handlePushToTalk(transcript, socket) {
-        socket.emit('transcript', { transcript: transcript });
+            // Process other commands normally
+            const command = CommandRegistry.findCommand(transcript);
+            if (!command) {
+                socket.emit('transcript', { transcript: transcript.toString() });
+                switchToTriggerMode();
+                return;
+            }
+
+            const result = command.handler(socket, socketHandler, transcript);
+            
+            if (result?.skipCommandMode) return;
+            if (result?.switchToTrigger) switchToTriggerMode();
+        } catch (error) {
+            console.error('Error handling command:', error);
+            socket.emit('transcript', { transcript: transcript.toString() });
+            switchToTriggerMode();
+        }
     }
 } 

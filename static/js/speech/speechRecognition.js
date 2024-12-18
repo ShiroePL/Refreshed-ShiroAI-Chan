@@ -92,20 +92,6 @@ export class SpeechRecognitionHandler {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                // Check for stop command first
-                if (this.socketHandler) {
-                    const stopWords = ['stop', 'ストップ', 'すとっぷ', 'とめて', 'やめて'];
-                    const isStopCommand = stopWords.some(word => 
-                        transcript.toLowerCase().includes(word.toLowerCase())
-                    );
-
-                    if (this.socketHandler.isCurrentlyPlaying() && isStopCommand) {
-                        this.socketHandler.stopCurrentAudio();
-                        this.switchToTriggerMode();
-                        return;
-                    }
-                }
-                
                 finalTranscript += transcript;
                 if (finalTranscript.trim().length > 0) {
                     switch (this.state) {
@@ -121,19 +107,20 @@ export class SpeechRecognitionHandler {
                             }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
-                            if (transcript === 'shutdown') {
-                                this.core.cleanup();
-                                this.setState(RecognitionStates.IDLE);
-                                return;
-                            }
                             ModeHandlers.handleCommandMode(
                                 transcript, 
-                                this.socket, 
+                                this.socket,
+                                this.socketHandler, 
                                 this.switchToTriggerMode.bind(this)
                             );
                             break;
                         case RecognitionStates.PUSH_TO_TALK:
-                            ModeHandlers.handlePushToTalk(transcript, this.socket);
+                            ModeHandlers.handleCommandMode(
+                                transcript,
+                                this.socket,
+                                this.socketHandler,
+                                () => {}
+                            );
                             break;
                     }
                 }
@@ -148,14 +135,20 @@ export class SpeechRecognitionHandler {
         }
     }
 
-    switchToCommandMode(initialCommand, isDirectShutdown = false) {
+    switchToCommandMode(initialCommand, isDirectCommand = false) {
         this.core.cleanup();
         
-        if (isDirectShutdown) {
-            // For direct shutdown, skip command mode entirely
-            this.socket.emit('stop_listening');
-            this.setState(RecognitionStates.IDLE);
-            return;
+        if (isDirectCommand) {
+            if (initialCommand === 'shutdown') {
+                this.socket.emit('stop_listening');
+                this.setState(RecognitionStates.IDLE);
+                return;
+            }
+            if (initialCommand === 'stop' && this.socketHandler?.isCurrentlyPlaying()) {
+                this.socketHandler.stopCurrentAudio();
+                this.switchToTriggerMode();
+                return;
+            }
         }
 
         this.setupRecognition('en-US');

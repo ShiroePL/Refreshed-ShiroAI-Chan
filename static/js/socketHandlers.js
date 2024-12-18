@@ -85,6 +85,7 @@ export class SocketHandler {
     }
 
     stopCurrentAudio() {
+        console.log('Attempting to stop audio...');
         if (this.currentSource) {
             try {
                 this.currentSource.stop();
@@ -92,8 +93,10 @@ export class SocketHandler {
             } catch (e) {
                 console.warn("Error stopping audio:", e);
             } finally {
-                this.isPlaying = false;
+                // Always clean up and emit, even if stop fails
                 this.currentSource = null;
+                this.isPlaying = false;
+                console.log('Audio stopped, emitting audio_finished');
                 this.socket.emit('audio_finished');
             }
         }
@@ -113,23 +116,23 @@ export class SocketHandler {
 
                 this.audioContext.decodeAudioData(bytes.buffer, 
                     (decodedData) => {
+                        console.log('Starting audio playback...');
                         const source = this.audioContext.createBufferSource();
                         source.buffer = decodedData;
                         source.connect(this.audioContext.destination);
                         
                         this.currentSource = source;
                         this.isPlaying = true;
+                        console.log('Audio state set - isPlaying:', this.isPlaying);
 
-                        // Add onended handler
                         source.onended = () => {
+                            console.log('Audio ended naturally');
                             this.isPlaying = false;
                             this.currentSource = null;
                             this.socket.emit('audio_finished');
-                            console.log('Audio playback finished naturally');
                         };
 
                         source.start(0);
-                        console.log('Started playing audio chunk:', decodedData.length, 'samples');
                     },
                     (error) => {
                         console.error('Error decoding audio data:', error);
@@ -164,7 +167,8 @@ export class SocketHandler {
     }
 
     isCurrentlyPlaying() {
-        return this.isPlaying;
+        console.log('Checking if playing:', this.isPlaying, 'Current source:', !!this.currentSource);
+        return this.isPlaying && this.currentSource !== null;
     }
 
     toggleVoice() {
