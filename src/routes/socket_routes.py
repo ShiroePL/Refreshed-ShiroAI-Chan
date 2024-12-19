@@ -3,6 +3,7 @@ from src.app_instance import socketio, assistant, hotkey_handler
 from src.overlay.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
+from windows_functions.govee_mode_changer import change_lights_mode  # Import the function
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +19,26 @@ def handle_transcript(data):
     
     response = assistant.get_response(transcript)
     
+    # Debug log for audio data
+    if response.get('audio'):
+        logger.debug(f"Audio data present, length: {len(response['audio'])}")
+        # Emit audio data separately
+        emit('audio', response['audio'])
+    else:
+        logger.debug("No audio data in response")
+    
     # Set speaking state only if voice is enabled
     if hotkey_handler and response.get('audio'):
         hotkey_handler.overlay.set_state(AssistantState.SPEAKING)
     else:
-        # If no audio response, return to previous state
         if assistant.listening:
             hotkey_handler.overlay.set_state(AssistantState.LISTENING)
         else:
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
     
+    # Send text response
     emit('response', {
         'text': response['text'],
-        'audio': response['audio'],
         'transcript': transcript
     })
 
@@ -49,9 +57,29 @@ def handle_stop_listening():
         assistant.listening = False
         if hotkey_handler:
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
+            
+        # Send a special goodbye message before stopping
+        response = {
+            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
+            'audio': assistant.text_to_speech("さようなら! I'll be here when you need me again!")
+        }
+        
+        # Send the goodbye message and wait for audio to finish
+        emit('response', {
+            'text': response['text'],
+            'transcript': 'sayounara'
+        })
+        
+        if response.get('audio'):
+            emit('audio', response['audio'])
+        
+        # Update UI status
         emit('status_update', {'listening': False})
+        
+        # Signal complete shutdown after response is sent
+        emit('shutdown_complete')
     except Exception as e:
-        handle_error(logger, e, "Stop listening handler")
+        handle_error(logger, e, "Stop listen handler")
 
 @socketio.on('audio_finished')
 def handle_audio_finished():
@@ -82,4 +110,49 @@ def handle_push_to_talk_stop():
             hotkey_handler.overlay.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Push-to-talk stop handler", silent=True)
+
+@socketio.on('state_change')
+def handle_state_change(data):
+    """Handle state change events from frontend."""
+    try:
+        new_state = data.get('state')
+        if new_state and hotkey_handler:
+            if new_state == 'LISTENING_FOR_COMMAND':
+                hotkey_handler.overlay.set_state(AssistantState.LISTENING_COMMAND)
+            elif new_state == 'LISTENING_FOR_TRIGGER':
+                hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+            # ... other states remain the same
+    except Exception as e:
+        handle_error(logger, e, "State change handler", silent=True)
+
+@socketio.on('action')
+def handle_action(data):
+    """Handle action commands from frontend"""
+    try:
+        action_type = data.get('type')
+        
+        if action_type == 'govee_lights':
+            mode = data.get('mode', 'dxgi')
+            result = change_lights_mode(mode)
+            
+            # Just emit a simple confirmation without triggering assistant response
+            emit('action_response', {
+                'type': action_type,
+                'success': True,
+                'message': f'Lights mode changed to {mode}'
+            })
+            
+            
+                
+            
+            
+        # ... other action handlers ...
+        
+    except Exception as e:
+        handle_error(logger, e, f"Action handler: {data.get('type')}")
+        emit('action_response', {
+            'type': data.get('type'),
+            'success': False,
+            'message': str(e)
+        })
     
