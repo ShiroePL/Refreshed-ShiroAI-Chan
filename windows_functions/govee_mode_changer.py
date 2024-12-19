@@ -1,15 +1,56 @@
 import pyautogui
 import pygetwindow as gw
 import time
+import ctypes
+from ctypes import wintypes
+import os
+import subprocess
+from pathlib import Path
+
+# Windows API constants
+KEYEVENTF_KEYUP = 0x0002
+VK_LWIN = 0x5B
+VK_S = 0x53
+
+# Load user32.dll
+user32 = ctypes.WinDLL('user32')
+
+def send_windows_key_s():
+    """Send Windows+S using direct Windows API calls"""
+    # Press Windows key
+    user32.keybd_event(VK_LWIN, 0, 0, 0)
+    # Press S key
+    user32.keybd_event(VK_S, 0, 0, 0)
+    time.sleep(0.1)  # Small delay
+    # Release S key
+    user32.keybd_event(VK_S, 0, KEYEVENTF_KEYUP, 0)
+    # Release Windows key
+    user32.keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0)
 
 def open_govee_app():
-    # Step 1: Open the Govee Desktop App from system tray
-    pyautogui.hotkey('win', 's')  # Open Windows search
-    time.sleep(0.5)
-    pyautogui.write('Govee Desktop')  # Replace with exact app name
-    time.sleep(0.5)
-    pyautogui.press('enter')  # Launch the app
-    time.sleep(1)  # Reduced from 3 to 2 seconds
+    """Open the Govee Desktop App directly"""
+    try:
+        # Common installation paths for Govee
+        possible_paths = [
+            os.path.expandvars(r'C:\Program Files\Govee\Govee Desktop\GoveeDesktop.exe')
+        ]
+
+        # Find the correct path
+        govee_path = next((path for path in possible_paths if os.path.exists(path)), None)
+        
+        if govee_path:
+            print(f"Found Govee at: {govee_path}")
+            # Use subprocess to start the app
+            subprocess.Popen([govee_path])
+            time.sleep(1)  # Wait for app to start
+            return True
+        else:
+            print("Govee Desktop not found in common locations")
+            return False
+            
+    except Exception as e:
+        print(f"Error launching Govee: {e}")
+        return False
 
 def focus_govee_window():  # sourcery skip: use-named-expression
     print("Searching for Govee window...")  # Immediate feedback
