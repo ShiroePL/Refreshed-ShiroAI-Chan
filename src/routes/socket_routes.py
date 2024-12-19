@@ -3,6 +3,7 @@ from src.app_instance import socketio, assistant, hotkey_handler
 from src.overlay.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
+from windows_functions.govee_mode_changer import change_lights_mode  # Import the function
 
 logger = logging.getLogger(__name__)
 
@@ -129,21 +130,23 @@ def handle_action(data):
     """Handle action commands from frontend"""
     try:
         action_type = data.get('type')
-        if action_type == 'lights_mode':
-            #result = change_lights_mode()
+        
+        if action_type == 'govee_lights':
+            mode = data.get('mode', 'dxgi')
+            result = change_lights_mode(mode)
+            
+            # Just emit a simple confirmation without triggering assistant response
             emit('action_response', {
                 'type': action_type,
                 'success': True,
-                'message': 'Lights mode changed successfully'
+                'message': f'Lights mode changed to {mode}'
             })
-        elif action_type == 'play_music':
-            #result = start_music_playback()
-            emit('action_response', {
-                'type': action_type,
-                'success': True,
-                'message': 'Music playback started'
-            })
-        # Add more action handlers here
+            
+            
+                
+            
+            
+        # ... other action handlers ...
         
     except Exception as e:
         handle_error(logger, e, f"Action handler: {data.get('type')}")

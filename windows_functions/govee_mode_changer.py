@@ -78,6 +78,9 @@ def change_govee_mode(mode='dxgi'):  # sourcery skip: use-named-expression
         return True
     return False
 
+def change_lights_mode(mode='dxgi'):
+    change_govee_mode(mode)
+
 if __name__ == "__main__":
     # Example usage:
     change_govee_mode('dxgi')  # or change_govee_mode('gdi')

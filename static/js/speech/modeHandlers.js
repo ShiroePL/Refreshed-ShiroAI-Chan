@@ -3,8 +3,11 @@ import { TriggerCommandRegistry } from './triggerCommands.js';
 
 export class ModeHandlers {
     static handleTriggerMode(transcript, switchToCommandMode) {
+        console.log('Trigger mode received:', transcript);
         const command = TriggerCommandRegistry.findCommand(transcript);
+        console.log('Found command:', command?.name);
         if (command) {
+            console.log('Executing command:', command.name);
             return command.handler(transcript, switchToCommandMode);
         }
         return false;

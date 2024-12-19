@@ -36,6 +36,44 @@ export class TriggerCommandRegistry {
                 switchToCommandMode('stop', true);
                 return true;
             }
+        },
+
+        lightFast: {
+            triggers: [
+                'ライトファースト', 'らいとふぁすと', 
+                'ライト早く', 'らいと早く',
+                'light fast', 'raito fast',
+                '早い', 'ハヤイ',  // Simple "fast"
+                'はやくして', 'ハヤクシテ',  // "make it fast"
+                'ライトはやく', 'らいとはやく'  // More natural Japanese
+            ],
+            handler: (transcript, switchToCommandMode) => {
+                console.log('light fast command triggered');
+                window.socket.emit('action', { 
+                    type: 'govee_lights',
+                    mode: 'gdi'
+                });
+                return true;
+            }
+        },
+
+        lightSlow: {
+            triggers: [
+                'ライトスロー', 'らいとすろー',
+                'ライトゆっくり', 'らいとゆっくり',
+                'light slow', 'raito slow',
+                'おそい', 'オソイ',  // Simple "slow"
+                'ゆっくり', 'ユックリ',  // "slowly"
+                'ライトおそく', 'らいとおそく'  // More natural Japanese
+            ],
+            handler: (transcript, switchToCommandMode) => {
+                console.log('light slow command triggered');
+                window.socket.emit('action', { 
+                    type: 'govee_lights',
+                    mode: 'dxgi'
+                });
+                return true;
+            }
         }
 
         // Add more Japanese commands here
@@ -59,17 +97,24 @@ export class TriggerCommandRegistry {
 
     static findCommand(transcript) {
         const lowerTranscript = transcript.toLowerCase();
+        console.log('Looking for command match in:', lowerTranscript);
         
         for (const [cmdName, cmd] of Object.entries(this.commands)) {
-            if (cmd.triggers.some(trigger => 
-                lowerTranscript.includes(trigger.toLowerCase())
-            )) {
+            console.log('Checking command:', cmdName);
+            const matched = cmd.triggers.some(trigger => {
+                const isMatch = lowerTranscript.includes(trigger.toLowerCase());
+                if (isMatch) console.log('Matched trigger:', trigger);
+                return isMatch;
+            });
+            if (matched) {
+                console.log('Found matching command:', cmdName);
                 return {
                     name: cmdName,
                     handler: cmd.handler
                 };
             }
         }
+        console.log('No command match found');
         return null;
     }
 
