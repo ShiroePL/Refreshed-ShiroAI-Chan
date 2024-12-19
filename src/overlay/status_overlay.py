@@ -150,13 +150,46 @@ class StatusOverlay:
 
     def position_window(self):
         try:
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            # Position slightly higher from bottom
-            self.root.geometry(f'+{screen_width-70}+{screen_height-120}')
-            print(f"Window positioned at {screen_width-70}, {screen_height-120}")
+            # Get all monitors using root.winfo_screenwidth/height for each monitor
+            import ctypes
+            user32 = ctypes.windll.user32
+            monitors = []
+            
+            def callback(hmonitor, hdc, lprect, lparam):
+                rect = ctypes.cast(lprect, ctypes.POINTER(ctypes.c_long))
+                monitors.append({
+                    'left': rect[0],
+                    'top': rect[1],
+                    'right': rect[2],
+                    'bottom': rect[3]
+                })
+                return 1
+            
+            callback_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+                                             ctypes.POINTER(ctypes.c_long), ctypes.c_double)
+            callback_function = callback_type(callback)
+            user32.EnumDisplayMonitors(None, None, callback_function, 0)
+            
+            # If there's more than one monitor, use the second one
+            if len(monitors) > 1:
+                # Use the second monitor (index 1)
+                monitor = monitors[1]
+                # Position in bottom-right of second monitor
+                x = monitor['left'] + 10
+                y = monitor['bottom'] - 110
+            else:
+                # Fallback to primary monitor if no second monitor
+                screen_width = self.root.winfo_screenwidth()
+                screen_height = self.root.winfo_screenheight()
+                x = screen_width - 70
+                y = screen_height - 120
+            
+            self.root.geometry(f'+{x}+{y}')
+            logger.info(f"Window positioned at {x}, {y}")
         except Exception as e:
-            print(f"Error positioning window: {e}")
+            logger.error(f"Error positioning window: {e}")
+            # Fallback to center of primary monitor
+            self.root.eval('tk::PlaceWindow . center')
 
     def start_drag(self, event):
         self.x = event.x

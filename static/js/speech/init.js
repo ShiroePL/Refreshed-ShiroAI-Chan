@@ -9,9 +9,27 @@ window.socket = null;
 
 // Initialize everything after DOM is loaded
 async function initializeApp() {
-    const socket = io();
+    const socket = io({
+        reconnectionAttempts: 5,  // Try to reconnect only 5 times
+        reconnectionDelay: 1000,  // Start with 1 second delay
+        reconnectionDelayMax: 5000,  // Maximum 5 seconds delay
+        timeout: 5000,  // Connection timeout
+        autoConnect: true  // Enable auto-connect
+    });
     window.socket = socket;
     
+    // Add reconnection error handler
+    socket.on('reconnect_failed', () => {
+        console.error('Failed to reconnect to server after maximum attempts');
+        showConnectionError();
+        socket.close();  // Explicitly close the socket
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        showConnectionError();
+    });
+
     try {
         // Create handlers
         window.socketHandler = new SocketHandler(socket);
@@ -30,6 +48,7 @@ async function initializeApp() {
         window.dispatchEvent(new Event('app-initialized'));
     } catch (error) {
         console.error('Initialization error:', error);
+        showConnectionError();
     }
 }
 
@@ -92,6 +111,9 @@ document.body.addEventListener('click', () => {
 
 // Add to initializeApp function
 window.addEventListener('beforeunload', () => {
+    if (window.socket) {
+        window.socket.close();  // Explicitly close socket connection
+    }
     if (window.socketHandler) {
         window.socketHandler.cleanup();
     }
@@ -114,5 +136,29 @@ window.addEventListener('error', (event) => {
         }
     } catch (e) {
         console.error('Error recovery failed:', e);
+    }
+});
+
+// Add error display function
+function showConnectionError() {
+    const statusElement = document.getElementById('listening-status');
+    if (statusElement) {
+        statusElement.textContent = 'Server disconnected - Please refresh page';
+        statusElement.className = 'status-inactive';
+    }
+}
+
+// Add visibility change handler to manage connections
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Page is hidden (tab inactive)
+        if (window.socket) {
+            window.socket.close();
+        }
+    } else {
+        // Page is visible again (tab active)
+        if (window.socket && !window.socket.connected) {
+            window.socket.connect();  // Reconnect only if needed
+        }
     }
 }); 

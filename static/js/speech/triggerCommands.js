@@ -97,10 +97,8 @@ export class TriggerCommandRegistry {
 
     static findCommand(transcript) {
         const lowerTranscript = transcript.toLowerCase();
-        console.log('Looking for command match in:', lowerTranscript);
         
         for (const [cmdName, cmd] of Object.entries(this.commands)) {
-            console.log('Checking command:', cmdName);
             const matched = cmd.triggers.some(trigger => {
                 const isMatch = lowerTranscript.includes(trigger.toLowerCase());
                 if (isMatch) console.log('Matched trigger:', trigger);

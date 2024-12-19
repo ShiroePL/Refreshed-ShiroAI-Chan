@@ -7,6 +7,8 @@ export class SocketHandler {
         this.isPlaying = false;
         this.audioQueue = [];
         this.isProcessingQueue = false;
+        this.connectionAttempts = 0;
+        this.maxConnectionAttempts = 5;
     }
 
     async initialize() {
@@ -24,10 +26,15 @@ export class SocketHandler {
         this.stopCurrentAudio();
         this.audioQueue = [];
         this.isProcessingQueue = false;
+        this.connectionAttempts = 0;
         
         if (this.audioContext) {
             this.audioContext.close().catch(console.error);
             this.audioContext = null;
+        }
+
+        if (this.socket) {
+            this.socket.removeAllListeners();  // Remove all socket listeners
         }
     }
 
@@ -96,7 +103,6 @@ export class SocketHandler {
                 // Always clean up and emit, even if stop fails
                 this.currentSource = null;
                 this.isPlaying = false;
-                console.log('Audio stopped, emitting audio_finished');
                 this.socket.emit('audio_finished');
             }
         }
@@ -116,17 +122,14 @@ export class SocketHandler {
 
                 this.audioContext.decodeAudioData(bytes.buffer, 
                     (decodedData) => {
-                        console.log('Starting audio playback...');
                         const source = this.audioContext.createBufferSource();
                         source.buffer = decodedData;
                         source.connect(this.audioContext.destination);
                         
                         this.currentSource = source;
                         this.isPlaying = true;
-                        console.log('Audio state set - isPlaying:', this.isPlaying);
 
                         source.onended = () => {
-                            console.log('Audio ended naturally');
                             this.isPlaying = false;
                             this.currentSource = null;
                             this.socket.emit('audio_finished');
@@ -167,7 +170,6 @@ export class SocketHandler {
     }
 
     isCurrentlyPlaying() {
-        console.log('Checking if playing:', this.isPlaying, 'Current source:', !!this.currentSource);
         return this.isPlaying && this.currentSource !== null;
     }
 
