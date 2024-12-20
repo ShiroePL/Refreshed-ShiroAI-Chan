@@ -70,6 +70,55 @@ export class TriggerCommandRegistry {
                 });
                 return true;
             }
+        },
+
+        showAnimeList: {
+            triggers: [
+                'show anime list', 'show my anime list',
+                'show watching list', 'show my watching list',
+                'display anime list', 'display my anime list',
+                'what anime am i watching'
+            ],
+            handler: (transcript, switchToCommandMode) => {
+                console.log('show anime list command triggered');
+                window.socket.emit('action', { 
+                    type: 'show_media_list',
+                    content_type: 'ANIME'
+                });
+                return true;
+            }
+        },
+
+        showMangaList: {
+            triggers: [
+                'show manga list', 'show my manga list',
+                'show reading list', 'show my reading list',
+                'display manga list', 'display my manga list',
+                'what manga am i reading'
+            ],
+            handler: (transcript, switchToCommandMode) => {
+                console.log('show manga list command triggered');
+                window.socket.emit('action', { 
+                    type: 'show_media_list',
+                    content_type: 'MANGA'
+                });
+                return true;
+            }
+        },
+
+        teaTimer: {
+            triggers: [
+                'set tea timer', 'tea timer', 'start timer',
+                'start tea timer', 'brew tea'
+            ],
+            handler: (transcript, switchToCommandMode) => {
+                console.log('tea timer command triggered');
+                window.socket.emit('action', { 
+                    type: 'tea_timer',
+                    duration: 15  // 3 minutes in seconds
+                });
+                return true;
+            }
         }
     };
 
