@@ -3,7 +3,7 @@ export class TriggerCommandRegistry {
         // Trigger words to start command mode
         wake: {
             triggers: [
-                'hey shiro', 'hi shiro', 'hello shiro',
+                'hey shiro', 'hi shiro', 'hello shiro', 'hello', 'hey', 'hi',
                 'wake up', 'wake up shiro',
                 'good morning', 'good morning shiro'
             ],
@@ -41,7 +41,7 @@ export class TriggerCommandRegistry {
 
         lightFast: {
             triggers: [
-                'light fast', 'lights fast',
+                'change lights to fast', 'change lights to fast mode',
                 'faster lights', 'speed up lights',
                 'quick lights', 'faster'
             ],
@@ -58,6 +58,7 @@ export class TriggerCommandRegistry {
         lightSlow: {
             triggers: [
                 'light slow', 'lights slow',
+                'change lights to slow', 'change lights to slow mode',
                 'slower lights', 'slow down lights',
                 'gentle lights', 'slower'
             ],
@@ -81,11 +82,11 @@ export class TriggerCommandRegistry {
     }
 
     static findCommand(transcript) {
-        const lowerTranscript = transcript.toLowerCase();
+        const lowerTranscript = transcript.toLowerCase().trim();
         
         for (const [cmdName, cmd] of Object.entries(this.commands)) {
             const matched = cmd.triggers.some(trigger => {
-                const isMatch = lowerTranscript.includes(trigger.toLowerCase());
+                const isMatch = lowerTranscript === trigger.toLowerCase();
                 if (isMatch) console.log('Matched trigger:', trigger);
                 return isMatch;
             });
