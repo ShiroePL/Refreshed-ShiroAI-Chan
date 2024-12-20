@@ -1,12 +1,11 @@
 export class TriggerCommandRegistry {
     static commands = {
-        // Trigger words to start English mode
+        // Trigger words to start command mode
         wake: {
             triggers: [
-                'hi shiro', 'はい シロ', 'hi シロ', 
-                'はいシロ', 'はいしろ', 'ハイシロ',
-                'おはよう', 'オハヨウ', 
-                'おはようシロ', 'オハヨウシロ'
+                'hey shiro', 'hi shiro', 'hello shiro', 'hello', 'hey', 'hi',
+                'wake up', 'wake up shiro',
+                'good morning', 'good morning shiro'
             ],
             handler: (transcript, switchToCommandMode) => {
                 const command = TriggerCommandRegistry.extractCommand(transcript);
@@ -15,11 +14,12 @@ export class TriggerCommandRegistry {
             }
         },
 
-        // System commands in Japanese mode
+        // System commands in trigger mode
         shutdown: {
             triggers: [
-                'sayounara', 'さようなら', 'さよなら', 
-                'サヨウナラ', 'さようならシロ', 'サヨウナラシロ'
+                'goodbye', 'goodbye shiro', 
+                'bye', 'bye shiro',
+                'shutdown', 'shut down'
             ],
             handler: (transcript, switchToCommandMode) => {
                 switchToCommandMode('shutdown', true);
@@ -29,8 +29,9 @@ export class TriggerCommandRegistry {
 
         stop: {
             triggers: [
-                'stop', 'ストップ', 'スタップ', 
-                'すとっぷ', 'とめて', 'やめて'
+                'stop', 'stop it', 
+                'be quiet', 'quiet',
+                'shut up'
             ],
             handler: (transcript, switchToCommandMode) => {
                 switchToCommandMode('stop', true);
@@ -40,12 +41,9 @@ export class TriggerCommandRegistry {
 
         lightFast: {
             triggers: [
-                'ライトファースト', 'らいとふぁすと', 
-                'ライト早く', 'らいと早く',
-                'light fast', 'raito fast',
-                '早い', 'ハヤイ',  // Simple "fast"
-                'はやくして', 'ハヤクシテ',  // "make it fast"
-                'ライトはやく', 'らいとはやく'  // More natural Japanese
+                'change lights to fast', 'change lights to fast mode',
+                'faster lights', 'speed up lights',
+                'quick lights', 'faster'
             ],
             handler: (transcript, switchToCommandMode) => {
                 console.log('light fast command triggered');
@@ -59,12 +57,10 @@ export class TriggerCommandRegistry {
 
         lightSlow: {
             triggers: [
-                'ライトスロー', 'らいとすろー',
-                'ライトゆっくり', 'らいとゆっくり',
-                'light slow', 'raito slow',
-                'おそい', 'オソイ',  // Simple "slow"
-                'ゆっくり', 'ユックリ',  // "slowly"
-                'ライトおそく', 'らいとおそく'  // More natural Japanese
+                'light slow', 'lights slow',
+                'change lights to slow', 'change lights to slow mode',
+                'slower lights', 'slow down lights',
+                'gentle lights', 'slower'
             ],
             handler: (transcript, switchToCommandMode) => {
                 console.log('light slow command triggered');
@@ -75,16 +71,6 @@ export class TriggerCommandRegistry {
                 return true;
             }
         }
-
-        // Add more Japanese commands here
-        // Example:
-        // lightControl: {
-        //     triggers: ['ライト', 'らいと', '電気'],
-        //     handler: (transcript, switchToCommandMode) => {
-        //         // Handle light control directly in Japanese mode
-        //         return true;
-        //     }
-        // }
     };
 
     static extractCommand(transcript) {
@@ -96,13 +82,11 @@ export class TriggerCommandRegistry {
     }
 
     static findCommand(transcript) {
-        const lowerTranscript = transcript.toLowerCase();
-        console.log('Looking for command match in:', lowerTranscript);
+        const lowerTranscript = transcript.toLowerCase().trim();
         
         for (const [cmdName, cmd] of Object.entries(this.commands)) {
-            console.log('Checking command:', cmdName);
             const matched = cmd.triggers.some(trigger => {
-                const isMatch = lowerTranscript.includes(trigger.toLowerCase());
+                const isMatch = lowerTranscript === trigger.toLowerCase();
                 if (isMatch) console.log('Matched trigger:', trigger);
                 return isMatch;
             });

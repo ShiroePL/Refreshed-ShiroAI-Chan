@@ -88,6 +88,15 @@ window.addEventListener('app-initialized', () => {
             }
         }
     });
+
+    // Add connection status to page title
+    window.socket.on('connect', () => {
+        document.title = 'Voice Assistant Interface';
+    });
+
+    window.socket.on('connect_error', () => {
+        document.title = 'Voice Assistant Interface (Disconnected)';
+    });
 });
 
 // Cleanup on page unload
@@ -95,4 +104,4 @@ window.onbeforeunload = function() {
     window.isPushToTalkPressed = false;
     if (window.speechHandler) window.speechHandler.stop();
     if (window.socketHandler) window.socketHandler.stopCurrentAudio();
-}; 
+};

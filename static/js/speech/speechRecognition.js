@@ -14,7 +14,7 @@ export class SpeechRecognitionHandler {
     }
 
     initialize() {
-        this.setupRecognition('ja-JP');
+        this.setupRecognition('en-US');
     }
 
     setState(newState) {
@@ -67,7 +67,7 @@ export class SpeechRecognitionHandler {
         if (event.error === 'no-speech' && 
             (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
             this.core.cleanup();
-            this.setupRecognition('ja-JP');
+            this.setupRecognition('en-US');
             this.startRecognition();
             return;
         }
@@ -102,7 +102,7 @@ export class SpeechRecognitionHandler {
                             );
                             if (!wasTriggered) {
                                 this.core.cleanup();
-                                this.setupRecognition('ja-JP');
+                                this.setupRecognition('en-US');
                                 this.startRecognition();
                             }
                             break;
@@ -165,7 +165,7 @@ export class SpeechRecognitionHandler {
 
     switchToTriggerMode() {
         this.core.cleanup();
-        this.setupRecognition('ja-JP');
+        this.setupRecognition('en-US');
         this.setState(RecognitionStates.LISTENING_FOR_TRIGGER);
         this.startRecognition();
     }
