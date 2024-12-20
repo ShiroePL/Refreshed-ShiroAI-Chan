@@ -1,10 +1,17 @@
 @echo off
-echo Starting VTube Animation Server in a new terminal...
-start pwsh -NoExit -Command "cd /d D:\111111.PROGRAMOWANIE\AI W PYTHONIE\Refreshed-ShiroAI-Chan; echo y | doppler run -- python -m vtube_server.animation_server"
+echo Starting all services...
 
-timeout /t 2
+:: Start Brain Service
+start cmd /k "cd services/brain && python -m uvicorn main:app --port 8015"
 
-echo Starting Main Application in another new terminal...
-start pwsh -NoExit -Command "cd /d D:\111111.PROGRAMOWANIE\AI W PYTHONIE\Refreshed-ShiroAI-Chan; echo y | doppler run -- python -m app"
+:: Start AI Service
+start cmd /k "cd services/ai && python main_ai.py"
 
+:: Start VTube Service
+start cmd /k "cd services/vtube && python -m uvicorn main:app --port 8002"
+
+:: Start Frontend Service (last)
+start cmd /k "cd services/frontend && python app.py"
+
+echo All services started!
 pause
