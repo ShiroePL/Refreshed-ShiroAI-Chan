@@ -9,7 +9,16 @@ app = Flask(__name__,
            static_folder='../static')
 
 # Create SocketIO instance
-socketio = SocketIO(app)
+socketio = SocketIO(
+    app,
+    ping_timeout=10,
+    ping_interval=5,
+    cors_allowed_origins="*",
+    reconnection=True,
+    reconnection_attempts=5,
+    reconnection_delay=1000,
+    reconnection_delay_max=5000
+)
 
 # Create assistant instance
 assistant = SimpleAssistant()

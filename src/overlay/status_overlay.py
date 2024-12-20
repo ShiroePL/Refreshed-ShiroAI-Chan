@@ -4,6 +4,7 @@ import queue
 from threading import Thread, Lock
 import logging
 from src.utils.logging_config import handle_error
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -100,53 +101,66 @@ class StatusOverlay:
     def setup_gui(self):
         if not self.setup_pending:
             return
-            
+        
         print("Setting up GUI...")
-        self.root = tk.Tk()
-        self.root.title("Assistant Status")
-        
-        # Make window floating and always on top
-        self.root.attributes('-topmost', True)
-        self.root.overrideredirect(True)  # Remove window decorations
-        self.root.wm_attributes('-transparentcolor', 'black')  # Make black background transparent
-        
-        # Create a circular indicator with larger size
-        self.canvas = tk.Canvas(self.root, width=60, height=60, bg='black', 
-                              highlightthickness=0)
-        self.canvas.pack()
-        
-        # Initialize the circle with larger size and border
-        padding = 5
-        self.circle = self.canvas.create_oval(
-            padding, padding, 
-            60-padding, 60-padding, 
-            fill="red",
-            outline="white",  # Add white border
-            width=2  # Border width
-        )
-        
-        # For pulsing animation
-        self.pulsing = False
-        self.current_state = AssistantState.IDLE
-        self.pulse_alpha = 0
-        self.pulse_increasing = True
-        
-        # Add drag functionality
-        self.canvas.bind('<Button-1>', self.start_drag)
-        self.canvas.bind('<B1-Motion>', self.drag)
-        
-        # Position window in bottom-right corner initially
-        self.position_window()
-        
-        # Make sure window is visible
-        self.root.lift()
-        self.root.attributes('-topmost', True)
-        
-        # Start update loop
-        self.update_loop()
-        print("GUI setup complete")
-        
-        self.setup_pending = False
+        try:
+            # Ensure we're not creating multiple root windows
+            if self.root is None:
+                self.root = tk.Tk()
+                self.root.title("Assistant Status")
+                
+                # Make window floating and always on top
+                self.root.attributes('-topmost', True)
+                self.root.overrideredirect(True)  # Remove window decorations
+                self.root.wm_attributes('-transparentcolor', 'black')  # Make black background transparent
+                
+                # Create a circular indicator with larger size
+                self.canvas = tk.Canvas(self.root, width=60, height=60, bg='black', 
+                                      highlightthickness=0)
+                self.canvas.pack()
+                
+                # Initialize the circle with larger size and border
+                padding = 5
+                self.circle = self.canvas.create_oval(
+                    padding, padding, 
+                    60-padding, 60-padding, 
+                    fill="red",
+                    outline="white",  # Add white border
+                    width=2  # Border width
+                )
+                
+                # For pulsing animation
+                self.pulsing = False
+                self.current_state = AssistantState.IDLE
+                self.pulse_alpha = 0
+                self.pulse_increasing = True
+                
+                # Add drag functionality
+                self.canvas.bind('<Button-1>', self.start_drag)
+                self.canvas.bind('<B1-Motion>', self.drag)
+                
+                # Position window in bottom-right corner initially
+                self.position_window()
+                
+                # Make sure window is visible
+                self.root.lift()
+                self.root.attributes('-topmost', True)
+                
+                # Start update loop
+                self.update_loop()
+                
+                # Handle window close event
+                self.root.protocol("WM_DELETE_WINDOW", self.close)
+                
+                # Start the Tkinter event loop in the current thread
+                if threading.current_thread() is threading.main_thread():
+                    self.root.mainloop()
+                
+                print("GUI setup complete")
+                self.setup_pending = False
+        except Exception as e:
+            logger.error(f"Error in setup_gui: {e}")
+            raise
 
     def position_window(self):
         try:
@@ -329,9 +343,9 @@ class StatusOverlay:
             self.running = False
             if self.root:
                 self.root.quit()
-                self.root.destroy()
+                self.root = None  # Clear the reference
         except Exception as e:
-            print(f"Error closing overlay: {e}") 
+            logger.error(f"Error closing overlay: {e}")
 
     def test_colors(self):
         """Test all color states in sequence"""
