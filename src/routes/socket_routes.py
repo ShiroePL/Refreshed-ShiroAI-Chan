@@ -1,13 +1,12 @@
 from flask_socketio import emit
-from src.app_instance import socketio, assistant, hotkey_handler, get_vtube_api
+from src.app_instance import socketio, assistant, hotkey_handler, trigger_animation
 from src.overlay.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
-from windows_functions.govee_mode_changer import change_lights_mode  # Import the function
+from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 import asyncio
 from src.services.timer_service import TimerService
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +24,6 @@ def handle_transcript(data):
         hotkey_handler.overlay.set_state(AssistantState.PROCESSING)
     
     response = assistant.get_response(transcript)
-    
-    # Get vtube_api safely
-    vtube_api = get_vtube_api()
-    if vtube_api and vtube_api.connected:
-        # Use vtube_api here if needed
-        pass
     
     # Debug log for audio data
     if response.get('audio'):
@@ -155,7 +148,7 @@ def handle_action(data):
             })
             
         if action_type == 'tea_timer':
-            duration = data.get('duration', 15)  # Default to 15 seconds for testing
+            duration = data.get('duration', 15)
             logger.info(f"Starting tea timer for {duration} seconds")
             success = timer_service.start_timer(duration)
 
@@ -163,14 +156,8 @@ def handle_action(data):
                 message = f"Tea timer started for {duration} seconds"
                 logger.info(message)
                 
-                # Get vtube_api safely and play animation if available
-                vtube_api = get_vtube_api()
-                if vtube_api and vtube_api.connected:
-                    try:
-                        vtube_api.play_animation("introduce")
-                        logger.debug("VTube animation played successfully")
-                    except Exception as e:
-                        logger.error(f"Failed to play VTube animation: {e}")
+                # Send animation request to VTube server
+                trigger_animation(message, mood="introduction")
             else:
                 message = "Timer already running!"
                 logger.warning(message)

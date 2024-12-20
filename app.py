@@ -22,23 +22,30 @@ def start_overlay():
     global overlay_started
     if not overlay_started:
         logger.info("Starting overlay...")
-        overlay.setup_gui()
-        overlay_started = True
-        logger.info("Overlay started")
-        overlay.set_state(AssistantState.IDLE)
-        overlay.root.mainloop()
+        try:
+            # Create and run the overlay in the main thread
+            overlay.setup_gui()
+            overlay_started = True
+            logger.info("Overlay started")
+            overlay.set_state(AssistantState.IDLE)
+            # Don't call mainloop here - let the thread handle it
+        except Exception as e:
+            logger.error(f"Error starting overlay: {e}")
 
 @app.before_request
 def before_request():
     """Start the overlay window before the first request"""
     global overlay_started
     if not overlay_started:
-        # Start Tkinter in a separate thread
-        thread = threading.Thread(target=start_overlay)
-        thread.daemon = True
-        thread.start()
-        # Give the overlay time to start
-        time.sleep(0.5)
+        try:
+            # Start Tkinter in a separate thread
+            thread = threading.Thread(target=start_overlay)
+            thread.daemon = True
+            thread.start()
+            # Give the overlay time to start
+            time.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Error in before_request: {e}")
 
 
 if __name__ == '__main__':
