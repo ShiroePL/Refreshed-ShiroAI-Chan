@@ -40,6 +40,7 @@ def before_request():
         # Give the overlay time to start
         time.sleep(0.5)
 
+
 if __name__ == '__main__':
     try:
         socketio.run(app, debug=True)
