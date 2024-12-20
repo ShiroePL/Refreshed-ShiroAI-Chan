@@ -1,11 +1,17 @@
 from flask_socketio import emit
-from src.app_instance import socketio, assistant, hotkey_handler
+from src.app_instance import socketio, assistant, hotkey_handler, trigger_animation
 from src.overlay.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
-from windows_functions.govee_mode_changer import change_lights_mode  # Import the function
+from windows_functions.govee_mode_changer import change_lights_mode
+from api_functions.anilist_functions import show_media_list
+import asyncio
+from src.services.timer_service import TimerService
 
 logger = logging.getLogger(__name__)
+
+# Initialize timer service
+timer_service = TimerService()
 
 @socketio.on('transcript')
 def handle_transcript(data):
@@ -22,7 +28,6 @@ def handle_transcript(data):
     # Debug log for audio data
     if response.get('audio'):
         logger.debug(f"Audio data present, length: {len(response['audio'])}")
-        # Emit audio data separately
         emit('audio', response['audio'])
     else:
         logger.debug("No audio data in response")
@@ -142,11 +147,42 @@ def handle_action(data):
                 'message': f'Lights mode changed to {mode}'
             })
             
-            
+        if action_type == 'tea_timer':
+            duration = data.get('duration', 15)
+            logger.info(f"Starting tea timer for {duration} seconds")
+            success = timer_service.start_timer(duration)
+
+            if success:
+                message = f"Tea timer started for {duration} seconds"
+                logger.info(message)
                 
+                # Send animation request to VTube server
+                trigger_animation(message, mood="introduction")
+            else:
+                message = "Timer already running!"
+                logger.warning(message)
+
+            emit('action_response', {
+                'type': action_type,
+                'success': success,
+                'message': message
+            })
             
+            # Also emit a regular response for the UI
+            emit('response', {
+                'text': message,
+                'transcript': 'Starting tea timer'
+            })
             
-        # ... other action handlers ...
+        if action_type == 'show_media_list':
+            content_type = data.get('content_type')
+            # Run the async function in a synchronous context
+            response_text = asyncio.run(show_media_list(content_type))
+            
+            emit('response', {
+                'text': response_text,
+                'transcript': f"Showing your {content_type.lower()} list"
+            })
         
     except Exception as e:
         handle_error(logger, e, f"Action handler: {data.get('type')}")
