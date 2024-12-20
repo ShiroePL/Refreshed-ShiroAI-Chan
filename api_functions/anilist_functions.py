@@ -3,9 +3,12 @@ from shared_code import connect_to_phpmyadmin
 import hashlib
 import re
 from shared_code import api_keys
-from src.services.groq_service import GroqService
+from services.ai.services.groq_service import GroqService
+from src.config.azure_config import get_groq_api_keys
 
-groq_service = GroqService(api_keys)
+# Initialize Groq service with API keys from config
+api_keys_list = get_groq_api_keys()
+groq_service = GroqService(api_keys_list)
 
 host = api_keys.host_name
 database = api_keys.db_name
