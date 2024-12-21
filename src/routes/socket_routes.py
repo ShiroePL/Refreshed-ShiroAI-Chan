@@ -12,6 +12,8 @@ from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
 from contextlib import asynccontextmanager
 from typing import Optional
+from asyncio import TimeoutError
+import websockets.exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,16 @@ class BrainWebSocket:
         self.connected = False
         self._connect_lock = asyncio.Lock()
         self._loop = None
+        self.reconnect_interval = 2  # seconds
+        self.max_retries = 5
+        
+    def is_connected(self):
+        """Check if websocket is connected and healthy"""
+        return (
+            self.websocket is not None and 
+            self.connected and 
+            not self.websocket.closed
+        )
         
     def _get_loop(self):
         """Get or create event loop"""
@@ -34,32 +46,96 @@ class BrainWebSocket:
             self._loop = asyncio.new_event_loop()
         return self._loop
         
+    async def connect_with_retry(self):
+        """Attempt to connect with retries"""
+        retries = 0
+        while retries < self.max_retries:
+            try:
+                if self.websocket:
+                    await self.websocket.close()
+                    self.websocket = None
+                
+                logger.info(f"[CONNECT] Attempting Brain service connection (attempt {retries + 1}/{self.max_retries})...")
+                self.websocket = await websockets.connect(
+                    BRAIN_SERVICE_URL,
+                    ping_interval=20,
+                    ping_timeout=10,
+                    close_timeout=10,
+                    max_size=None  # Allow unlimited message size
+                )
+                self.connected = True
+                logger.info("[SUCCESS] Brain service connected")
+                return True
+            except Exception as e:
+                retries += 1
+                logger.warning(f"[RETRY] Connection attempt {retries} failed: {e}")
+                self.connected = False
+                self.websocket = None
+                if retries < self.max_retries:
+                    await asyncio.sleep(self.reconnect_interval)
+                else:
+                    logger.error("[ERROR] Max retries reached, connection failed")
+                    raise
+
     async def ensure_connected(self):
         """Ensure WebSocket connection is established"""
-        if not self.connected:
+        if not self.is_connected():
             async with self._connect_lock:
-                if not self.connected:
+                if not self.is_connected():
                     try:
-                        logger.info("🔌 Establishing connection to Brain service...")
-                        self.websocket = await websockets.connect(BRAIN_SERVICE_URL)
+                        logger.info("[CONNECT] Establishing Brain service connection...")
+                        self.websocket = await websockets.connect(
+                            BRAIN_SERVICE_URL,
+                            ping_interval=20,
+                            ping_timeout=10,
+                            close_timeout=10,
+                            max_size=None
+                        )
                         self.connected = True
-                        logger.info("✅ Connected to Brain service")
+                        logger.info("[SUCCESS] Brain service connected")
                     except Exception as e:
-                        logger.error(f"❌ Failed to connect to Brain service: {e}")
+                        logger.error(f"[ERROR] Brain service connection failed: {e}")
+                        self.connected = False
+                        self.websocket = None
                         raise
 
     async def send_message(self, data: dict) -> dict:
         """Send message to Brain service and get response"""
-        await self.ensure_connected()
         try:
+            await self.ensure_connected()
             await self.websocket.send(json.dumps(data))
             response = await self.websocket.recv()
             return json.loads(response)
         except Exception as e:
-            logger.error(f"❌ Error in Brain communication: {e}")
+            logger.error(f"[ERROR] Brain communication failed: {e}")
             self.connected = False
             self.websocket = None
             raise
+
+    async def keep_alive(self):
+        """Keep-alive loop to maintain connection"""
+        while True:
+            try:
+                if self.is_connected():
+                    try:
+                        await self.websocket.ping()
+                    except:
+                        self.connected = False
+                        self.websocket = None
+                        await self.ensure_connected()
+                else:
+                    await self.ensure_connected()
+                await asyncio.sleep(15)  # Check connection every 15 seconds
+            except Exception as e:
+                logger.warning(f"[KEEP-ALIVE] Connection check failed: {e}")
+                self.connected = False
+                self.websocket = None
+                await asyncio.sleep(2)  # Wait before retry
+
+    def start_keep_alive(self):
+        """Start the keep-alive loop in the background"""
+        loop = self._get_loop()
+        loop.create_task(self.keep_alive())
 
     def run_async(self, coro):
         """Run coroutine in the event loop"""
@@ -88,7 +164,7 @@ def send_to_brain_service(data):
         return response_data
             
     except Exception as e:
-        logger.error(f"❌ Error communicating with Brain service: {e}")
+        logger.error(f"[ERROR] Brain service communication failed: {e}")
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.ERROR)
         emit('error', {'message': str(e)})
@@ -99,7 +175,7 @@ def handle_transcript(data):
     """Handle incoming transcription data."""
     try:
         transcript = data.get('transcript', '')
-        logger.info(f"Received transcript: {transcript}")
+        logger.info(f"[TRANSCRIPT] Received: {transcript}")
         
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.PROCESSING)
@@ -111,7 +187,7 @@ def handle_transcript(data):
         })
         
     except Exception as e:
-        logger.error(f"Error handling transcript: {e}")
+        logger.error(f"[ERROR] Transcript handling failed: {e}")
         emit('error', {'message': str(e)})
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.ERROR)
@@ -258,7 +334,9 @@ def handle_connect():
     """Handle client connection by ensuring Brain service connection"""
     try:
         brain_ws.run_async(brain_ws.ensure_connected())
-        logger.info("✅ Client connected and Brain service connection established")
+        # Start the keep-alive mechanism
+        brain_ws.start_keep_alive()
+        logger.info("[SUCCESS] Client connected and Brain service connection established")
     except Exception as e:
-        logger.error(f"❌ Failed to establish Brain service connection: {e}")
+        logger.error(f"[ERROR] Failed to establish Brain service connection: {e}")
     
