@@ -1,12 +1,13 @@
 from flask_socketio import emit
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
-
 from src.utils.logging_config import handle_error
 import logging
+import websockets
+import json
+import asyncio
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
-import asyncio
 from src.services.timer_service import TimerService
 
 logger = logging.getLogger(__name__)
@@ -14,39 +15,57 @@ logger = logging.getLogger(__name__)
 # Initialize timer service
 timer_service = TimerService()
 
+# WebSocket connection to AI service
+AI_SERVICE_URL = 'ws://localhost:8010/ws'
+
+async def send_to_ai_service(data):
+    """Send data to AI service via WebSocket"""
+    try:
+        async with websockets.connect(AI_SERVICE_URL) as websocket:
+            await websocket.send(json.dumps(data))
+            response = await websocket.recv()
+            response_data = json.loads(response)
+            
+            # Emit response to client
+            emit('response', response_data)
+            
+            # Update overlay state based on response
+            if hotkey_handler:
+                if response_data.get('audio'):
+                    hotkey_handler.set_state(AssistantState.SPEAKING)
+                else:
+                    hotkey_handler.set_state(AssistantState.LISTENING)
+                    
+            return response_data
+            
+    except Exception as e:
+        logger.error(f"Error communicating with AI service: {e}")
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.ERROR)
+        emit('error', {'message': str(e)})
+        return None
+
 @socketio.on('transcript')
 def handle_transcript(data):
     """Handle incoming transcription data."""
-    transcript = data.get('transcript', '')
-    assistant.last_command = transcript
-    
-    # Set processing state while getting response
-    if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.PROCESSING)
-    
-    response = assistant.get_response(transcript)
-    
-    # Debug log for audio data
-    if response.get('audio'):
-        logger.debug(f"Audio data present, length: {len(response['audio'])}")
-        emit('audio', response['audio'])
-    else:
-        logger.debug("No audio data in response")
-    
-    # Set speaking state only if voice is enabled
-    if hotkey_handler and response.get('audio'):
-        hotkey_handler.overlay.set_state(AssistantState.SPEAKING)
-    else:
-        if assistant.listening:
-            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
-        else:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
-    
-    # Send text response
-    emit('response', {
-        'text': response['text'],
-        'transcript': transcript
-    })
+    try:
+        transcript = data.get('transcript', '')
+        logger.info(f"Received transcript: {transcript}")
+        
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.PROCESSING)
+        
+        # Forward to AI service via WebSocket
+        asyncio.run(send_to_ai_service({
+            'type': 'generate',
+            'transcript': transcript
+        }))
+        
+    except Exception as e:
+        logger.error(f"Error handling transcript: {e}")
+        emit('error', {'message': str(e)})
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.ERROR)
 
 @socketio.on('start_listening')
 def handle_start_listening():
@@ -64,20 +83,11 @@ def handle_stop_listening():
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.IDLE)
             
-        # Send a special goodbye message before stopping
-        response = {
-            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
-            'audio': assistant.text_to_speech("さようなら! I'll be here when you need me again!")
-        }
-        
-        # Send the goodbye message and wait for audio to finish
+        # Send a special goodbye message to the AI service
         emit('response', {
-            'text': response['text'],
+            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
             'transcript': 'sayounara'
         })
-        
-        if response.get('audio'):
-            emit('audio', response['audio'])
         
         # Update UI status
         emit('status_update', {'listening': False})

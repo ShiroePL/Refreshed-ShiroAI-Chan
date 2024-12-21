@@ -1,7 +1,7 @@
 import azure.cognitiveservices.speech as speechsdk
 import base64
 import logging
-from services.ai.config.azure_config import get_speech_config
+from modules.ai.config.azure_config import get_speech_config
 
 logger = logging.getLogger(__name__)
 

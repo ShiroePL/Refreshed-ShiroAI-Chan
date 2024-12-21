@@ -1,190 +1,87 @@
 export class SocketHandler {
     constructor(socket) {
         this.socket = socket;
-        this.audioContext = null;
-        this.currentSource = null;
-        this.voiceEnabled = true;
+        this.currentAudio = null;
+        this.audioQueue = [];
         this.isPlaying = false;
-        this.audioQueue = [];
-        this.isProcessingQueue = false;
-        this.connectionAttempts = 0;
-        this.maxConnectionAttempts = 5;
+        this.voiceEnabled = true;
     }
 
-    async initialize() {
-        try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            await this.audioContext.resume();
-            this.setupAudioHandlers();
-        } catch (error) {
-            console.error("Failed to initialize audio context:", error);
-            throw error;
-        }
+    initialize() {
+        this.setupResponseHandlers();
     }
 
-    cleanup() {
-        this.stopCurrentAudio();
-        this.audioQueue = [];
-        this.isProcessingQueue = false;
-        this.connectionAttempts = 0;
-        
-        if (this.audioContext) {
-            this.audioContext.close().catch(console.error);
-            this.audioContext = null;
-        }
-
-        if (this.socket) {
-            this.socket.removeAllListeners();  // Remove all socket listeners
-        }
-    }
-
-    async processAudioQueue() {
-        if (this.isProcessingQueue || this.audioQueue.length === 0) return;
-        
-        this.isProcessingQueue = true;
-        
-        try {
-            while (this.audioQueue.length > 0) {
-                const audioChunk = this.audioQueue.shift();
-                await this.playAudioChunk(audioChunk);
-            }
-        } catch (error) {
-            console.error("Error processing audio queue:", error);
-        } finally {
-            this.isProcessingQueue = false;
-        }
-    }
-
-    async playAudioChunk(audioChunk) {
-        if (!this.voiceEnabled || !this.audioContext) return;
-
-        try {
-            const base64 = audioChunk.replace('data:audio/wav;base64,', '');
-            const binaryString = window.atob(base64);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-
-            const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
-            const source = this.audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(this.audioContext.destination);
+    setupResponseHandlers() {
+        this.socket.on('response', async (data) => {
+            console.log('Received response:', data);
             
-            return new Promise((resolve, reject) => {
-                this.currentSource = source;
-                this.isPlaying = true;
+            // Update text response immediately
+            document.getElementById('response').textContent = data.text || data.response || 'No response';
+            
+            // Handle audio if present and voice is enabled
+            if (data.audio && this.voiceEnabled) {
+                await this.playAudioResponse(data.audio);
+            }
+        });
 
-                source.onended = () => {
-                    this.isPlaying = false;
-                    this.currentSource = null;
-                    this.socket.emit('audio_finished');
-                    resolve();
-                };
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            document.getElementById('response').textContent = 'Error: ' + (error.message || 'Unknown error');
+        });
+    }
 
-                source.start(0);
-            });
+    async playAudioResponse(audioData) {
+        try {
+            // Convert base64 to audio buffer
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = Uint8Array.from(atob(audioData), c => c.charCodeAt(0)).buffer;
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Create and play audio source
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            
+            this.currentAudio = source;
+            this.isPlaying = true;
+            
+            // Play audio and handle completion
+            source.start(0);
+            source.onended = () => {
+                this.isPlaying = false;
+                this.currentAudio = null;
+                this.socket.emit('audio_finished');
+            };
         } catch (error) {
+            console.error('Error playing audio:', error);
             this.isPlaying = false;
-            this.currentSource = null;
-            throw error;
+            this.currentAudio = null;
         }
     }
 
     stopCurrentAudio() {
-        console.log('Attempting to stop audio...');
-        if (this.currentSource) {
+        if (this.currentAudio) {
             try {
-                this.currentSource.stop();
-                this.currentSource.disconnect();
+                this.currentAudio.stop();
             } catch (e) {
-                console.warn("Error stopping audio:", e);
-            } finally {
-                // Always clean up and emit, even if stop fails
-                this.currentSource = null;
-                this.isPlaying = false;
-                this.socket.emit('audio_finished');
+                console.warn('Error stopping audio:', e);
             }
+            this.currentAudio = null;
+            this.isPlaying = false;
         }
     }
 
-    setupAudioHandlers() {
-        this.socket.on('audio', (audioChunk) => {
-            if (!this.voiceEnabled) return;
-            
-            try {
-                const base64 = audioChunk.replace('data:audio/wav;base64,', '');
-                const binaryString = window.atob(base64);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-
-                this.audioContext.decodeAudioData(bytes.buffer, 
-                    (decodedData) => {
-                        const source = this.audioContext.createBufferSource();
-                        source.buffer = decodedData;
-                        source.connect(this.audioContext.destination);
-                        
-                        this.currentSource = source;
-                        this.isPlaying = true;
-
-                        source.onended = () => {
-                            this.isPlaying = false;
-                            this.currentSource = null;
-                            this.socket.emit('audio_finished');
-                        };
-
-                        source.start(0);
-                    },
-                    (error) => {
-                        console.error('Error decoding audio data:', error);
-                        this.isPlaying = false;
-                    }
-                );
-            } catch (error) {
-                console.error('Error processing audio:', error);
-                this.isPlaying = false;
-            }
-        });
-
-        // Add handler for the response that includes audio
-        this.socket.on('response', (data) => {
-            if (data.audio && this.voiceEnabled) {
-                // Emit the audio data to be played
-                this.socket.emit('audio', data.audio);
-            }
-        });
-
-        // Add handler for audio errors
-        this.socket.on('audio_error', (error) => {
-            console.error('Audio streaming error:', error);
-        });
-
-        // Add handler for shutdown completion
-        this.socket.on('shutdown_complete', () => {
-            if (window.speechHandler) {
-                window.speechHandler.shutdown();
-            }
-        });
-    }
-
     isCurrentlyPlaying() {
-        return this.isPlaying && this.currentSource !== null;
+        return this.isPlaying;
     }
 
     toggleVoice() {
         this.voiceEnabled = !this.voiceEnabled;
         const btn = document.getElementById('voiceToggleBtn');
-        if (this.voiceEnabled) {
-            btn.innerHTML = '<i class="bi bi-volume-up-fill"></i> Voice On';
-            btn.classList.remove('btn-danger');
-            btn.classList.add('btn-success');
-        } else {
-            btn.innerHTML = '<i class="bi bi-volume-mute-fill"></i> Voice Off';
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-danger');
-            this.stopCurrentAudio(); // Stop any playing audio when voice is disabled
+        if (btn) {
+            btn.innerHTML = this.voiceEnabled ? 
+                '<i class="bi bi-volume-up-fill"></i> Voice On' : 
+                '<i class="bi bi-volume-mute-fill"></i> Voice Off';
         }
     }
 } 

@@ -117,20 +117,11 @@ export class SpeechRecognitionHandler {
                             }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
-                            ModeHandlers.handleCommandMode(
-                                transcript, 
-                                this.socket,
-                                this.socketHandler, 
-                                this.switchToTriggerMode.bind(this)
-                            );
-                            break;
                         case RecognitionStates.PUSH_TO_TALK:
-                            ModeHandlers.handleCommandMode(
-                                transcript,
-                                this.socket,
-                                this.socketHandler,
-                                () => {}
-                            );
+                            // Send transcript directly to backend
+                            this.socket.emit('transcript', { 
+                                transcript: transcript.trim() 
+                            });
                             break;
                     }
                 }
@@ -139,6 +130,7 @@ export class SpeechRecognitionHandler {
             }
         }
 
+        // Update UI with transcripts
         document.getElementById('interim').textContent = interimTranscript;
         if (finalTranscript) {
             document.getElementById('final').textContent = finalTranscript;
