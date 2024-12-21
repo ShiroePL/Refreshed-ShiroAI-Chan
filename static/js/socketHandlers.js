@@ -24,6 +24,11 @@ export class SocketHandler {
             }
         });
 
+        // Add handler for stop command
+        this.socket.on('stop_audio', () => {
+            this.stopCurrentAudio();
+        });
+
         this.socket.on('error', (error) => {
             console.error('Socket error:', error);
             document.getElementById('response').textContent = 'Error: ' + (error.message || 'Unknown error');
@@ -63,11 +68,15 @@ export class SocketHandler {
         if (this.currentAudio) {
             try {
                 this.currentAudio.stop();
+                this.currentAudio.disconnect();
             } catch (e) {
                 console.warn('Error stopping audio:', e);
+            } finally {
+                this.currentAudio = null;
+                this.isPlaying = false;
+                // Always emit audio_finished when stopping
+                this.socket.emit('audio_finished');
             }
-            this.currentAudio = null;
-            this.isPlaying = false;
         }
     }
 

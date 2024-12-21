@@ -3,7 +3,7 @@ import base64
 import logging
 from modules.ai.config.azure_config import get_speech_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("modules.ai.services.tts_service")
 
 class TTSService:
     def __init__(self):

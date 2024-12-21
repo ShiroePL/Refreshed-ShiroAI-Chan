@@ -2,7 +2,7 @@ import os
 import azure.cognitiveservices.speech as speechsdk
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("modules.ai.config.azure_config")
 
 def get_speech_config():
     """Get Azure Speech SDK configuration from environment variables."""

@@ -111,6 +111,13 @@ export class SpeechRecognitionHandler {
                                 this.switchToCommandMode.bind(this)
                             );
                             if (!wasTriggered) {
+                                // Check for stop command even in trigger mode
+                                if (transcript.toLowerCase().includes('stop')) {
+                                    if (this.socketHandler?.isCurrentlyPlaying()) {
+                                        this.socketHandler.stopCurrentAudio();
+                                        this.socket.emit('audio_finished');
+                                    }
+                                }
                                 this.core.cleanup();
                                 this.setupRecognition('en-US');
                                 this.startRecognition();
@@ -118,6 +125,15 @@ export class SpeechRecognitionHandler {
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
                         case RecognitionStates.PUSH_TO_TALK:
+                            // Check for stop command first
+                            if (transcript.toLowerCase().includes('stop')) {
+                                if (this.socketHandler?.isCurrentlyPlaying()) {
+                                    this.socketHandler.stopCurrentAudio();
+                                    this.socket.emit('audio_finished');
+                                    this.switchToTriggerMode();
+                                    return;
+                                }
+                            }
                             // Send transcript directly to backend
                             this.socket.emit('transcript', { 
                                 transcript: transcript.trim() 

@@ -2,7 +2,7 @@ import time
 from groq import Groq
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("modules.ai.services.ai_service")
 
 def handle_error(logger, error, context):
     """Local error handler"""
