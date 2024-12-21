@@ -1,58 +1,127 @@
 from flask_socketio import emit
-from src.app_instance import socketio, assistant, hotkey_handler, trigger_animation
-from src.overlay.status_overlay import AssistantState
+from src.app_instance import socketio, assistant, hotkey_handler
+from src.services.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
+import websockets
+import json
+import asyncio
+from functools import partial
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
-import asyncio
 from src.services.timer_service import TimerService
+from contextlib import asynccontextmanager
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # Initialize timer service
 timer_service = TimerService()
 
+# WebSocket connection to Brain service
+BRAIN_SERVICE_URL = 'ws://localhost:8015/ws'
+
+class BrainWebSocket:
+    def __init__(self):
+        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        self.connected = False
+        self._connect_lock = asyncio.Lock()
+        self._loop = None
+        
+    def _get_loop(self):
+        """Get or create event loop"""
+        if self._loop is None or self._loop.is_closed():
+            self._loop = asyncio.new_event_loop()
+        return self._loop
+        
+    async def ensure_connected(self):
+        """Ensure WebSocket connection is established"""
+        if not self.connected:
+            async with self._connect_lock:
+                if not self.connected:
+                    try:
+                        logger.info("🔌 Establishing connection to Brain service...")
+                        self.websocket = await websockets.connect(BRAIN_SERVICE_URL)
+                        self.connected = True
+                        logger.info("✅ Connected to Brain service")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to connect to Brain service: {e}")
+                        raise
+
+    async def send_message(self, data: dict) -> dict:
+        """Send message to Brain service and get response"""
+        await self.ensure_connected()
+        try:
+            await self.websocket.send(json.dumps(data))
+            response = await self.websocket.recv()
+            return json.loads(response)
+        except Exception as e:
+            logger.error(f"❌ Error in Brain communication: {e}")
+            self.connected = False
+            self.websocket = None
+            raise
+
+    def run_async(self, coro):
+        """Run coroutine in the event loop"""
+        loop = self._get_loop()
+        return loop.run_until_complete(coro)
+
+# Create global WebSocket instance
+brain_ws = BrainWebSocket()
+
+def send_to_brain_service(data):
+    """Send data to Brain service via WebSocket"""
+    try:
+        # Run async code in sync context
+        response_data = brain_ws.run_async(brain_ws.send_message(data))
+        
+        # Emit response to client
+        emit('response', response_data)
+        
+        # Update overlay state based on response
+        if hotkey_handler:
+            if response_data.get('audio'):
+                hotkey_handler.set_state(AssistantState.SPEAKING)
+            else:
+                hotkey_handler.set_state(AssistantState.LISTENING)
+                
+        return response_data
+            
+    except Exception as e:
+        logger.error(f"❌ Error communicating with Brain service: {e}")
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.ERROR)
+        emit('error', {'message': str(e)})
+        return None
+
 @socketio.on('transcript')
 def handle_transcript(data):
     """Handle incoming transcription data."""
-    transcript = data.get('transcript', '')
-    assistant.last_command = transcript
-    
-    # Set processing state while getting response
-    if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.PROCESSING)
-    
-    response = assistant.get_response(transcript)
-    
-    # Debug log for audio data
-    if response.get('audio'):
-        logger.debug(f"Audio data present, length: {len(response['audio'])}")
-        emit('audio', response['audio'])
-    else:
-        logger.debug("No audio data in response")
-    
-    # Set speaking state only if voice is enabled
-    if hotkey_handler and response.get('audio'):
-        hotkey_handler.overlay.set_state(AssistantState.SPEAKING)
-    else:
-        if assistant.listening:
-            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
-        else:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
-    
-    # Send text response
-    emit('response', {
-        'text': response['text'],
-        'transcript': transcript
-    })
+    try:
+        transcript = data.get('transcript', '')
+        logger.info(f"Received transcript: {transcript}")
+        
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.PROCESSING)
+        
+        # Send to Brain service
+        send_to_brain_service({
+            'type': 'process',
+            'transcript': transcript
+        })
+        
+    except Exception as e:
+        logger.error(f"Error handling transcript: {e}")
+        emit('error', {'message': str(e)})
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.ERROR)
 
 @socketio.on('start_listening')
 def handle_start_listening():
     """Handle start listening event."""
     assistant.listening = True
     if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+        hotkey_handler.set_state(AssistantState.LISTENING)
     emit('status_update', {'listening': True})
 
 @socketio.on('stop_listening')
@@ -61,22 +130,13 @@ def handle_stop_listening():
     try:
         assistant.listening = False
         if hotkey_handler:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+            hotkey_handler.set_state(AssistantState.IDLE)
             
-        # Send a special goodbye message before stopping
-        response = {
-            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
-            'audio': assistant.text_to_speech("さようなら! I'll be here when you need me again!")
-        }
-        
-        # Send the goodbye message and wait for audio to finish
+        # Send a special goodbye message to the AI service
         emit('response', {
-            'text': response['text'],
+            'text': "さようなら! (Sayounara!) I'll be here when you need me again!",
             'transcript': 'sayounara'
         })
-        
-        if response.get('audio'):
-            emit('audio', response['audio'])
         
         # Update UI status
         emit('status_update', {'listening': False})
@@ -92,9 +152,9 @@ def handle_audio_finished():
     try:
         if hotkey_handler:
             if assistant.listening:
-                hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+                hotkey_handler.set_state(AssistantState.LISTENING)
             else:
-                hotkey_handler.overlay.set_state(AssistantState.IDLE)
+                hotkey_handler.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Audio finished handler")
 
@@ -103,7 +163,7 @@ def handle_push_to_talk_start():
     """Handle push-to-talk start event."""
     try:
         if hotkey_handler:
-            hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+            hotkey_handler.set_state(AssistantState.LISTENING)
     except Exception as e:
         handle_error(logger, e, "Push-to-talk start handler", silent=True)
 
@@ -112,7 +172,7 @@ def handle_push_to_talk_stop():
     """Handle push-to-talk stop event."""
     try:
         if hotkey_handler:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+            hotkey_handler.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Push-to-talk stop handler", silent=True)
 
@@ -191,4 +251,14 @@ def handle_action(data):
             'success': False,
             'message': str(e)
         })
+    
+# Initialize WebSocket connection when the module loads
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection by ensuring Brain service connection"""
+    try:
+        brain_ws.run_async(brain_ws.ensure_connected())
+        logger.info("✅ Client connected and Brain service connection established")
+    except Exception as e:
+        logger.error(f"❌ Failed to establish Brain service connection: {e}")
     

@@ -3,7 +3,7 @@ from shared_code import connect_to_phpmyadmin
 import hashlib
 import re
 from shared_code import api_keys
-from services.ai.services.groq_service import GroqService
+from modules.ai.services.groq_service import GroqService
 from src.config.azure_config import get_groq_api_keys
 
 # Initialize Groq service with API keys from config

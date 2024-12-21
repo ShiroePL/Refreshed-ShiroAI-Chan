@@ -60,19 +60,29 @@ export class SpeechRecognitionHandler {
     }
 
     handleError(event) {
+        // Ignore abort errors as they're usually intentional
+        if (event.error === 'aborted') {
+            return;
+        }
+
         if (event.error !== 'no-speech') {
             console.error("Recognition error:", event.error);
         }
         
+        // Only attempt restart for no-speech errors during active listening
         if (event.error === 'no-speech' && 
-            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
-            this.core.cleanup();
-            this.setupRecognition('en-US');
-            this.startRecognition();
+            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || 
+             this.socketHandler?.isCurrentlyPlaying())) {
+            // Add delay before restart to prevent tight loops
+            setTimeout(() => {
+                if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
+                    this.startRecognition();
+                }
+            }, 1000);
             return;
         }
 
-        this.core.cleanup();
+        // For other errors, transition to error state briefly
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
             if (this.state === RecognitionStates.ERROR) {
@@ -82,7 +92,7 @@ export class SpeechRecognitionHandler {
                     this.setState(RecognitionStates.IDLE);
                 }
             }
-        }, 1000);
+        }, 2000);
     }
 
     handleResult(event) {
@@ -101,26 +111,33 @@ export class SpeechRecognitionHandler {
                                 this.switchToCommandMode.bind(this)
                             );
                             if (!wasTriggered) {
+                                // Check for stop command even in trigger mode
+                                if (transcript.toLowerCase().includes('stop')) {
+                                    if (this.socketHandler?.isCurrentlyPlaying()) {
+                                        this.socketHandler.stopCurrentAudio();
+                                        this.socket.emit('audio_finished');
+                                    }
+                                }
                                 this.core.cleanup();
                                 this.setupRecognition('en-US');
                                 this.startRecognition();
                             }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
-                            ModeHandlers.handleCommandMode(
-                                transcript, 
-                                this.socket,
-                                this.socketHandler, 
-                                this.switchToTriggerMode.bind(this)
-                            );
-                            break;
                         case RecognitionStates.PUSH_TO_TALK:
-                            ModeHandlers.handleCommandMode(
-                                transcript,
-                                this.socket,
-                                this.socketHandler,
-                                () => {}
-                            );
+                            // Check for stop command first
+                            if (transcript.toLowerCase().includes('stop')) {
+                                if (this.socketHandler?.isCurrentlyPlaying()) {
+                                    this.socketHandler.stopCurrentAudio();
+                                    this.socket.emit('audio_finished');
+                                    this.switchToTriggerMode();
+                                    return;
+                                }
+                            }
+                            // Send transcript directly to backend
+                            this.socket.emit('transcript', { 
+                                transcript: transcript.trim() 
+                            });
                             break;
                     }
                 }
@@ -129,6 +146,7 @@ export class SpeechRecognitionHandler {
             }
         }
 
+        // Update UI with transcripts
         document.getElementById('interim').textContent = interimTranscript;
         if (finalTranscript) {
             document.getElementById('final').textContent = finalTranscript;

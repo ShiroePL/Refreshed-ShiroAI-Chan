@@ -1,4 +1,4 @@
-from src.app_instance import app, socketio, assistant, overlay
+from src.app_instance import app, socketio, assistant
 
 # Import routes first
 from src.routes import main_routes, socket_routes
