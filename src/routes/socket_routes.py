@@ -1,6 +1,7 @@
 from flask_socketio import emit
-from src.app_instance import socketio, assistant, hotkey_handler, trigger_animation
-from src.overlay.status_overlay import AssistantState
+from src.app_instance import socketio, assistant, hotkey_handler
+from src.services.status_overlay import AssistantState
+
 from src.utils.logging_config import handle_error
 import logging
 from windows_functions.govee_mode_changer import change_lights_mode

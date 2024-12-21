@@ -1,11 +1,16 @@
 import time
-from src.services.groq_service import GroqService
-from src.config.azure_config import get_groq_api_keys
+import logging
+from src.utils.error_handler import handle_error
+
+logger = logging.getLogger(__name__)
 
 class ResponseHandler:
-    def __init__(self):
-        api_keys = get_groq_api_keys()
-        self.groq_service = GroqService(api_keys)
+    def __init__(self, groq_service=None):
+        self.groq_service = groq_service
+
+    def set_groq_service(self, groq_service):
+        """Set the GroqService instance after initialization"""
+        self.groq_service = groq_service
 
     def handle_response(self, command, assistant):
         """Handle different types of commands and return appropriate responses."""
@@ -20,10 +25,12 @@ class ResponseHandler:
 
         # Get AI response for everything else
         try:
+            if not self.groq_service:
+                return "Groq service not initialized"
             response = self.groq_service.send_to_groq(command)
             return response
         except Exception as e:
-            print(f"Error getting AI response: {e}")
+            logger.error(f"Error getting AI response: {e}")
             return "I'm having trouble processing that right now. Could you try again?"
 
 def handle_stop(assistant):

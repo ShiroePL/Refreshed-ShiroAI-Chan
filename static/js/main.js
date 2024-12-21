@@ -91,10 +91,12 @@ window.addEventListener('app-initialized', () => {
 
     // Add connection status to page title
     window.socket.on('connect', () => {
+        console.log('Socket connected successfully');
         document.title = 'Voice Assistant Interface';
     });
 
-    window.socket.on('connect_error', () => {
+    window.socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
         document.title = 'Voice Assistant Interface (Disconnected)';
     });
 });
