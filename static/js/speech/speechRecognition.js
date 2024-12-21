@@ -60,19 +60,29 @@ export class SpeechRecognitionHandler {
     }
 
     handleError(event) {
+        // Ignore abort errors as they're usually intentional
+        if (event.error === 'aborted') {
+            return;
+        }
+
         if (event.error !== 'no-speech') {
             console.error("Recognition error:", event.error);
         }
         
+        // Only attempt restart for no-speech errors during active listening
         if (event.error === 'no-speech' && 
-            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
-            this.core.cleanup();
-            this.setupRecognition('en-US');
-            this.startRecognition();
+            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || 
+             this.socketHandler?.isCurrentlyPlaying())) {
+            // Add delay before restart to prevent tight loops
+            setTimeout(() => {
+                if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
+                    this.startRecognition();
+                }
+            }, 1000);
             return;
         }
 
-        this.core.cleanup();
+        // For other errors, transition to error state briefly
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
             if (this.state === RecognitionStates.ERROR) {
@@ -82,7 +92,7 @@ export class SpeechRecognitionHandler {
                     this.setState(RecognitionStates.IDLE);
                 }
             }
-        }, 1000);
+        }, 2000);
     }
 
     handleResult(event) {

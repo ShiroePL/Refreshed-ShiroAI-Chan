@@ -1,7 +1,5 @@
-
 from flask import Flask
 from flask_socketio import SocketIO
-
 from src.assistant.assistant import SimpleAssistant
 
 
@@ -11,21 +9,12 @@ app = Flask(__name__,
            static_folder='../static')
 
 # Create SocketIO instance
-socketio = SocketIO(
-    app,
-    ping_timeout=10,
-    ping_interval=5,
-    cors_allowed_origins="*",
-    reconnection=True,
-    reconnection_attempts=5,
-    reconnection_delay=1000,
-    reconnection_delay_max=5000
-)
+socketio = SocketIO(app)
 
 # Create assistant instance
 assistant = SimpleAssistant()
 
-
+# Create overlay instance
 
 # Create a variable to store hotkey_handler (will be set later)
 hotkey_handler = None 

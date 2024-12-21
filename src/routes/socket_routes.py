@@ -53,7 +53,7 @@ def handle_start_listening():
     """Handle start listening event."""
     assistant.listening = True
     if hotkey_handler:
-        hotkey_handler.overlay.set_state(AssistantState.LISTENING)
+        hotkey_handler.set_state(AssistantState.LISTENING)
     emit('status_update', {'listening': True})
 
 @socketio.on('stop_listening')
@@ -62,7 +62,7 @@ def handle_stop_listening():
     try:
         assistant.listening = False
         if hotkey_handler:
-            hotkey_handler.overlay.set_state(AssistantState.IDLE)
+            hotkey_handler.set_state(AssistantState.IDLE)
             
         # Send a special goodbye message before stopping
         response = {

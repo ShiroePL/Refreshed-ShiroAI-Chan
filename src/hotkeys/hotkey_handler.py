@@ -15,11 +15,11 @@ class HotkeyHandler:
             self.overlay_url = "http://localhost:8020"  # Overlay service URL
             
             self.setup_hotkeys()
-            self.set_overlay_state(AssistantState.IDLE)
+            self.set_state(AssistantState.IDLE)
         except Exception as e:
             handle_error(logger, e, "HotkeyHandler initialization")
 
-    def set_overlay_state(self, state):
+    def set_state(self, state):
         """Send state change to overlay service"""
         try:
             response = requests.post(f"{self.overlay_url}/state_change", 
@@ -37,20 +37,20 @@ class HotkeyHandler:
     def handle_push_to_talk_press(self, e):
         try:
             logger.debug("Push-to-talk pressed")
-            self.set_overlay_state(AssistantState.LISTENING)
+            self.set_state(AssistantState.LISTENING)
             self.socketio.emit('hotkey_push_to_talk_start')
         except Exception as e:
             handle_error(logger, e, "Push-to-talk press handling", silent=True)
 
     def handle_push_to_talk_release(self, e):
         logger.debug("Push-to-talk released")
-        self.set_overlay_state(AssistantState.IDLE)
+        self.set_state(AssistantState.IDLE)
         self.socketio.emit('hotkey_push_to_talk_stop')
 
     def set_speaking_state(self):
         logger.debug("Setting SPEAKING state")
-        self.set_overlay_state(AssistantState.SPEAKING)
+        self.set_state(AssistantState.SPEAKING)
 
     def set_idle_state(self):
         logger.debug("Setting IDLE state")
-        self.set_overlay_state(AssistantState.IDLE) 
+        self.set_state(AssistantState.IDLE) 
