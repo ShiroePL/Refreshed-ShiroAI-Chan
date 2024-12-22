@@ -218,3 +218,8 @@ def handle_action(data):
             'message': str(e)
         })
     
+@socketio.on('keepalive')
+def handle_keepalive():
+    """Handle keepalive ping from client"""
+    emit('keepalive_response', {'status': 'ok'})
+    

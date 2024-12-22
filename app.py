@@ -12,6 +12,11 @@ load_dotenv()
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+        socketio.run(
+            app, 
+            host="0.0.0.0", 
+            port=5000, 
+            debug=True
+        )
     except Exception as e:
         handle_error(logger, e, "Application startup")

@@ -5,10 +5,61 @@ export class SocketHandler {
         this.audioQueue = [];
         this.isPlaying = false;
         this.voiceEnabled = true;
+        this.setupConnectionHandlers();
+    }
+
+    setupConnectionHandlers() {
+        // Connection error handling
+        this.socket.on('reconnect_failed', () => {
+            console.error('Failed to reconnect to server after maximum attempts');
+            this.showConnectionError();
+            this.socket.close();
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            this.showConnectionError();
+        });
     }
 
     initialize() {
         this.setupResponseHandlers();
+        this.setupSocketListeners();
+    }
+
+    setupSocketListeners() {
+        // Move all socket listeners here from init.js
+        this.socket.on('hotkey_push_to_talk_start', () => {
+            if (window.startPushToTalk) {
+                window.startPushToTalk();
+            }
+        });
+
+        this.socket.on('hotkey_push_to_talk_stop', () => {
+            if (window.stopPushToTalk) {
+                window.stopPushToTalk();
+            }
+        });
+
+        this.socket.on('status_update', (data) => {
+            if (!data.isPushToTalk && window.updateListeningUI) {
+                window.updateListeningUI(data.listening);
+            }
+        });
+
+        this.socket.on('audio_finished', () => {
+            if (window.speechHandler) {
+                window.speechHandler.switchToTriggerMode();
+            }
+        });
+    }
+
+    showConnectionError() {
+        const statusElement = document.getElementById('listening-status');
+        if (statusElement) {
+            statusElement.textContent = 'Server disconnected - Please refresh page';
+            statusElement.className = 'status-inactive';
+        }
     }
 
     setupResponseHandlers() {
@@ -16,10 +67,21 @@ export class SocketHandler {
             console.log('Received response:', data);
             
             // Update text response immediately
-            document.getElementById('response').textContent = data.text || data.response || 'No response';
+            const responseElement = document.getElementById('response');
+            if (responseElement) {
+                responseElement.textContent = data.text || data.response || 'No response';
+            }
             
             // Handle audio if present and voice is enabled
             if (data.audio && this.voiceEnabled) {
+                // Request audio focus when playing in background
+                if (!window.isPageVisible) {
+                    try {
+                        await navigator.mediaSession.setActionHandler('play', () => {});
+                    } catch (err) {
+                        console.warn('MediaSession API not supported', err);
+                    }
+                }
                 await this.playAudioResponse(data.audio);
             }
         });
