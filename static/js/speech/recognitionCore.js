@@ -64,11 +64,12 @@ export class RecognitionCore {
                 this.recognition.onerror = null;
                 this.recognition.onaudiostart = null;
                 
-                // Properly abort and stop
                 if (this.isRecognizing) {
-                    this.recognition.abort();  // Use abort instead of stop
-                    this.isRecognizing = false;
+                    this.recognition.stop();
                 }
+                
+                // Properly dispose of the recognition object
+                this.recognition.abort();
             } catch (e) {
                 console.warn("Cleanup warning:", e);
             } finally {

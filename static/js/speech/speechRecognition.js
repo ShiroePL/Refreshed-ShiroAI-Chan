@@ -57,29 +57,19 @@ export class SpeechRecognitionHandler {
     }
 
     handleError(event) {
-        // Ignore abort errors as they're usually intentional
-        if (event.error === 'aborted') {
-            return;
-        }
-
         if (event.error !== 'no-speech') {
             console.error("Recognition error:", event.error);
         }
         
-        // Only attempt restart for no-speech errors during active listening
         if (event.error === 'no-speech' && 
-            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || 
-             this.socketHandler?.isCurrentlyPlaying())) {
-            // Add delay before restart to prevent tight loops
-            setTimeout(() => {
-                if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
-                    this.startRecognition();
-                }
-            }, 1000);
+            (this.state === RecognitionStates.LISTENING_FOR_TRIGGER || this.socketHandler?.isCurrentlyPlaying())) {
+            this.core.cleanup();
+            this.setupRecognition('en-US');
+            this.startRecognition();
             return;
         }
 
-        // For other errors, transition to error state briefly
+        this.core.cleanup();
         this.setState(RecognitionStates.ERROR);
         setTimeout(() => {
             if (this.state === RecognitionStates.ERROR) {
@@ -89,7 +79,7 @@ export class SpeechRecognitionHandler {
                     this.setState(RecognitionStates.IDLE);
                 }
             }
-        }, 2000);
+        }, 1000);
     }
 
     handleResult(event) {
@@ -103,38 +93,32 @@ export class SpeechRecognitionHandler {
                 if (finalTranscript.trim().length > 0) {
                     switch (this.state) {
                         case RecognitionStates.LISTENING_FOR_TRIGGER:
+                            // Check for stop command first if audio is playing
+                            if (this.socketHandler?.isCurrentlyPlaying() && 
+                                transcript.toLowerCase().includes('stop')) {
+                                this.socketHandler.stopCurrentAudio();
+                                this.socket.emit('audio_finished');
+                                // Restart recognition in trigger mode
+                                this.switchToTriggerMode();
+                                return;
+                            }
+                            
                             const wasTriggered = ModeHandlers.handleTriggerMode(
                                 transcript, 
                                 this.switchToCommandMode.bind(this)
                             );
                             if (!wasTriggered) {
-                                // Check for stop command even in trigger mode
-                                if (transcript.toLowerCase().includes('stop')) {
-                                    if (this.socketHandler?.isCurrentlyPlaying()) {
-                                        this.socketHandler.stopCurrentAudio();
-                                        this.socket.emit('audio_finished');
-                                    }
-                                }
-                                this.core.cleanup();
-                                this.setupRecognition('en-US');
-                                this.startRecognition();
+                                this.switchToTriggerMode();
                             }
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
                         case RecognitionStates.PUSH_TO_TALK:
-                            // Check for stop command first
-                            if (transcript.toLowerCase().includes('stop')) {
-                                if (this.socketHandler?.isCurrentlyPlaying()) {
-                                    this.socketHandler.stopCurrentAudio();
-                                    this.socket.emit('audio_finished');
-                                    this.switchToTriggerMode();
-                                    return;
-                                }
-                            }
                             // Send transcript directly to backend
                             this.socket.emit('transcript', { 
                                 transcript: transcript.trim() 
                             });
+                            // Immediately switch to trigger mode to listen for stop command
+                            this.switchToTriggerMode();
                             break;
                     }
                 }
@@ -143,7 +127,6 @@ export class SpeechRecognitionHandler {
             }
         }
 
-        // Update UI with transcripts
         document.getElementById('interim').textContent = interimTranscript;
         if (finalTranscript) {
             document.getElementById('final').textContent = finalTranscript;
@@ -224,7 +207,12 @@ export class SpeechRecognitionHandler {
         } catch (error) {
             console.error("Error starting recognition:", error);
             this.setState(RecognitionStates.ERROR);
+            setTimeout(() => this.setState(RecognitionStates.IDLE), 1000);
         }
+    }
+
+    stopRecognition() {
+        this.core.stop();
     }
 
     shutdown() {
