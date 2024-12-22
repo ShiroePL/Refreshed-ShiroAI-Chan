@@ -27,18 +27,6 @@ export class TriggerCommandRegistry {
             }
         },
 
-        stop: {
-            triggers: [
-                'stop', 'stop it', 
-                'be quiet', 'quiet',
-                'shut up'
-            ],
-            handler: (transcript, switchToCommandMode) => {
-                switchToCommandMode('stop', true);
-                return true;
-            }
-        },
-
         lightFast: {
             triggers: [
                 'change lights to fast', 'change lights to fast mode',
