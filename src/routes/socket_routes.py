@@ -1,4 +1,6 @@
+import time
 from flask_socketio import emit
+import requests
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
@@ -12,68 +14,24 @@ from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
 from contextlib import asynccontextmanager
 from typing import Optional
+from asyncio import TimeoutError
+import websockets.exceptions
 
 logger = logging.getLogger(__name__)
 
 # Initialize timer service
 timer_service = TimerService()
 
-# WebSocket connection to Brain service
-BRAIN_SERVICE_URL = 'ws://localhost:8015/ws'
-
-class BrainWebSocket:
-    def __init__(self):
-        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
-        self.connected = False
-        self._connect_lock = asyncio.Lock()
-        self._loop = None
-        
-    def _get_loop(self):
-        """Get or create event loop"""
-        if self._loop is None or self._loop.is_closed():
-            self._loop = asyncio.new_event_loop()
-        return self._loop
-        
-    async def ensure_connected(self):
-        """Ensure WebSocket connection is established"""
-        if not self.connected:
-            async with self._connect_lock:
-                if not self.connected:
-                    try:
-                        logger.info("🔌 Establishing connection to Brain service...")
-                        self.websocket = await websockets.connect(BRAIN_SERVICE_URL)
-                        self.connected = True
-                        logger.info("✅ Connected to Brain service")
-                    except Exception as e:
-                        logger.error(f"❌ Failed to connect to Brain service: {e}")
-                        raise
-
-    async def send_message(self, data: dict) -> dict:
-        """Send message to Brain service and get response"""
-        await self.ensure_connected()
-        try:
-            await self.websocket.send(json.dumps(data))
-            response = await self.websocket.recv()
-            return json.loads(response)
-        except Exception as e:
-            logger.error(f"❌ Error in Brain communication: {e}")
-            self.connected = False
-            self.websocket = None
-            raise
-
-    def run_async(self, coro):
-        """Run coroutine in the event loop"""
-        loop = self._get_loop()
-        return loop.run_until_complete(coro)
-
-# Create global WebSocket instance
-brain_ws = BrainWebSocket()
+# Replace WebSocket URL with HTTP URL
+BRAIN_SERVICE_URL = 'http://shiropc:8015/process'
 
 def send_to_brain_service(data):
-    """Send data to Brain service via WebSocket"""
+    """Send data to Brain service via HTTP"""
     try:
-        # Run async code in sync context
-        response_data = brain_ws.run_async(brain_ws.send_message(data))
+        # Make HTTP POST request to Brain service
+        response = requests.post(BRAIN_SERVICE_URL, json=data)
+        response.raise_for_status()  # Raise exception for bad status codes
+        response_data = response.json()
         
         # Emit response to client
         emit('response', response_data)
@@ -88,7 +46,7 @@ def send_to_brain_service(data):
         return response_data
             
     except Exception as e:
-        logger.error(f"❌ Error communicating with Brain service: {e}")
+        logger.error(f"[ERROR] Brain service communication failed: {e}")
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.ERROR)
         emit('error', {'message': str(e)})
@@ -99,10 +57,16 @@ def handle_transcript(data):
     """Handle incoming transcription data."""
     try:
         transcript = data.get('transcript', '')
-        logger.info(f"Received transcript: {transcript}")
+        logger.info(f"[TRANSCRIPT] Received: {transcript}")
+        #print("received transcript at", time.time())
         
         if hotkey_handler:
+            #print("before hotkey_handler.set_state at", time.time())
             hotkey_handler.set_state(AssistantState.PROCESSING)
+            #print("after hotkey_handler.set_state at", time.time())
+        
+        # Add a timestamp before sending to Brain service
+        #print("preparing to send to brain service at", time.time())
         
         # Send to Brain service
         send_to_brain_service({
@@ -110,8 +74,10 @@ def handle_transcript(data):
             'transcript': transcript
         })
         
+        # Add a timestamp after sending to Brain service
+        #print("sent to brain service at", time.time())
     except Exception as e:
-        logger.error(f"Error handling transcript: {e}")
+        logger.error(f"[ERROR] Transcript handling failed: {e}")
         emit('error', {'message': str(e)})
         if hotkey_handler:
             hotkey_handler.set_state(AssistantState.ERROR)
@@ -252,13 +218,8 @@ def handle_action(data):
             'message': str(e)
         })
     
-# Initialize WebSocket connection when the module loads
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection by ensuring Brain service connection"""
-    try:
-        brain_ws.run_async(brain_ws.ensure_connected())
-        logger.info("✅ Client connected and Brain service connection established")
-    except Exception as e:
-        logger.error(f"❌ Failed to establish Brain service connection: {e}")
+@socketio.on('keepalive')
+def handle_keepalive():
+    """Handle keepalive ping from client"""
+    emit('keepalive_response', {'status': 'ok'})
     

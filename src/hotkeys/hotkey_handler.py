@@ -20,14 +20,13 @@ class HotkeyHandler:
             handle_error(logger, e, "HotkeyHandler initialization")
 
     def set_state(self, state):
-        """Send state change to overlay service"""
+        """Emit state change event via socketio"""
         try:
-            response = requests.post(f"{self.overlay_url}/state_change", 
-                                   json={"state": state.value})
-            if response.status_code != 200:
-                logger.error(f"Failed to update overlay state: {response.text}")
+            # Emit the state change event
+            self.socketio.emit('state_change', {'state': state.value})
+            logger.debug(f"Emitted state change: {state.value}")
         except Exception as e:
-            handle_error(logger, e, "Setting overlay state", silent=True)
+            handle_error(logger, e, "Emitting state change", silent=True)
 
     def setup_hotkeys(self):
         logger.debug("Setting up hotkeys")

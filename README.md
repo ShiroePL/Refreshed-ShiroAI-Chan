@@ -44,6 +44,26 @@ The assistant includes a global Push-to-Talk feature that works even when the br
 - Modern web browser
 - Administrative privileges (for global hotkey functionality)
 
+
+### Starting the Services
+
+The application consists of multiple services that need to be started in a specific order:
+
+1. **Start AI Service** (First Terminal):
+   ```bash
+doppler run -- python -m modules.ai.main_ai```
+This will start the AI service on port 8013
+
+2. **Start Brain Service** (Second Terminal):
+   ```bash
+doppler run -- python -m modules.brain.main_brain```
+This will start the Brain service on port 8015
+
+3. **Start Flask Service** (Third Terminal):
+   ```bash
+doppler run -- python -m app```
+This will start the Flask service on port 5000
+
 ## Local Setup
 
 1. Clone the repository
@@ -66,3 +86,22 @@ The assistant can be controlled in multiple ways:
 3. Using Toggle Listen for hands-free operation
 
 For the best experience, ensure no other applications are using the Backtick/Tilde Key and keep the browser running in the background.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Services Won't Start**
+   - Make sure all required API keys are set in Doppler
+   - Check if the required ports (8013, 8015, 5000) are available
+   - Ensure you're starting services in the correct order
+
+2. **Connection Errors**
+   - Verify all three services are running
+   - Check the logs in `logs/` directory for specific errors
+   - Ensure you're not running services with `uvicorn` directly
+
+3. **No Audio Output**
+   - Verify Azure Speech Services credentials
+   - Check browser audio settings
+   - Look for TTS-related errors in the logs
