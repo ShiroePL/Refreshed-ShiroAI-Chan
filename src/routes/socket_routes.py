@@ -24,11 +24,27 @@ def send_to_brain_service(data):
     try:
         # Make HTTP POST request to Brain service
         response = requests.post(BRAIN_SERVICE_URL, json=data)
-        response.raise_for_status()  # Raise exception for bad status codes
+        response.raise_for_status()
         response_data = response.json()
         
-        # Emit response to client
+        # Strip out animation data before sending initial response
+        animation_data = response_data.pop('animation_data', None)
+        
+        # Emit response to client (this will trigger audio playback)
         emit('response', response_data)
+        
+        # If we have animation data, trigger it immediately after sending response
+        if animation_data:
+            try:
+                # Send animation request to VTube service
+                animation_response = requests.post(
+                    'http://localhost:5001/play_animation',
+                    json=animation_data
+                )
+                animation_response.raise_for_status()
+                logger.info("Animation triggered successfully")
+            except Exception as e:
+                logger.error(f"Failed to trigger animation: {e}")
         
         # Update overlay state based on response
         if hotkey_handler:

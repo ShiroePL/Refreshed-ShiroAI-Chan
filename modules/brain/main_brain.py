@@ -179,34 +179,25 @@ async def process_input(request: Request):
         # Analyze input type
         input_type, animation_name = await analyze_input(input_data.transcript)
         
-        # Route to appropriate service
-        if input_type == "animation":
-            # Call VTube service with specific animation
-            vtube_response = await call_vtube_service(data, animation_name)
-            # Also get AI response for animation requests
-            ai_response = await call_ai_service(data)
-            # Combine responses
-            response = {**vtube_response, **ai_response}
-            logger.info(f"Combined response structure: {response.keys()}")
-        else:  # conversation
-            response = await call_ai_service(data)
-            logger.info(f"AI service response structure: {response.keys()}")
+        # Always get AI response first
+        ai_response = await call_ai_service(data)
         
-        # Validate response has required fields
-        if 'text' not in response:
-            logger.error("Response missing required 'text' field")
-            raise HTTPException(status_code=502, detail="Invalid service response")
-            
-        # Log final response structure
-        logger.info(f"Final response keys: {response.keys()}")
-        if 'audio' in response:
-            logger.info("Audio data present in final response")
+        response = {
+            **ai_response,
+            'animation_data': None  # Default to no animation
+        }
+        
+        # If we have an animation, include it in response but don't trigger yet
+        if input_type == "animation":
+            animation_data = {
+                "text": data["transcript"],
+                "mood": animation_name
+            }
+            response['animation_data'] = animation_data
+            logger.info(f"Added animation data to response: {animation_data}")
             
         return response
         
-    except httpx.RequestError as e:
-        logger.error(f"HTTP request error: {e}")
-        raise HTTPException(status_code=502, detail="Service request failed")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
