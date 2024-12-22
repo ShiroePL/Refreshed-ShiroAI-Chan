@@ -6,7 +6,7 @@ from typing import Dict, Optional
 from dotenv import load_dotenv
 from modules.ai.services.groq_service import GroqService
 from modules.ai.services.tts_service import TTSService
-from modules.ai.config.azure_config import get_groq_api_keys
+from src.config.azure_config import get_groq_api_keys
 from pathlib import Path
 import uvicorn
 import json

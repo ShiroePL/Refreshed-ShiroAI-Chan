@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_socketio import SocketIO
-from src.assistant.assistant import SimpleAssistant
+from src.assistant.assistant import AIAgent
 
 
 # Create Flask app
@@ -17,7 +17,7 @@ socketio = SocketIO(
 )
 
 # Create assistant instance
-assistant = SimpleAssistant()
+assistant = AIAgent()
 
 # Create overlay instance
 
