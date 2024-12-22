@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import logging
@@ -7,8 +7,7 @@ from pydantic import BaseModel, ValidationError
 import os
 from pathlib import Path
 from colorama import init, Fore, Style
-import asyncio
-
+import time
 # Initialize colorama for Windows compatibility
 init()
 
@@ -94,7 +93,7 @@ app.add_middleware(
 )
 
 # Fetch service URLs from Doppler configuration or fallback to defaults
-AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8013")
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://shiropc:8013")
 VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:8002")
 
 # Define the request model
@@ -153,6 +152,8 @@ async def call_vtube_service(data: Dict) -> Dict:
 
 @app.post("/process")
 async def process_input(request: Request):
+    # print the current time for the request
+    print("Entered /process at", time.time())
     try:
         data = await request.json()
         logger.info(f"Received data: {data}")
@@ -199,170 +200,8 @@ async def process_input(request: Request):
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-class WebSocketManager:
-    def __init__(self):
-        self.active_connections = set()
-        self.ping_interval = 20  # seconds
-        self._background_tasks = set()
-        self.reconnect_attempts = {}  # Track reconnection attempts per client
-        self.max_reconnect_attempts = 5
-        self.reconnect_interval = 2  # seconds
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.add(websocket)
-        client_id = id(websocket)
-        logger.info(f"[CONNECT] New WebSocket client connected [ID: {client_id}]")
-        logger.info(f"[STATUS] Total active connections: {len(self.active_connections)}")
-        
-        # Start ping task for this connection
-        task = asyncio.create_task(self.ping_client(websocket, client_id))
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
-
-    def disconnect(self, websocket: WebSocket):
-        client_id = id(websocket)
-        self.active_connections.discard(websocket)
-        logger.info(f"[DISCONNECT] WebSocket client disconnected [ID: {client_id}]")
-        logger.info(f"[STATUS] Total active connections: {len(self.active_connections)}")
-        
-        # Start reconnection attempt if not already trying
-        if client_id not in self.reconnect_attempts:
-            task = asyncio.create_task(self.attempt_reconnect(websocket, client_id))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
-
-    async def attempt_reconnect(self, websocket: WebSocket, client_id: int):
-        """Attempt to reconnect to a disconnected client"""
-        self.reconnect_attempts[client_id] = 0
-        
-        while self.reconnect_attempts[client_id] < self.max_reconnect_attempts:
-            try:
-                logger.info(f"[RECONNECT] Attempting to reconnect to client [{client_id}] (attempt {self.reconnect_attempts[client_id] + 1})")
-                
-                # Try to reestablish connection
-                await websocket.accept()
-                self.active_connections.add(websocket)
-                logger.info(f"[SUCCESS] Reconnected to client [{client_id}]")
-                
-                # Restart ping task
-                task = asyncio.create_task(self.ping_client(websocket, client_id))
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
-                
-                # Clear reconnection attempts
-                del self.reconnect_attempts[client_id]
-                return
-                
-            except Exception as e:
-                self.reconnect_attempts[client_id] += 1
-                if self.reconnect_attempts[client_id] >= self.max_reconnect_attempts:
-                    logger.error(f"[ERROR] Failed to reconnect to client [{client_id}] after {self.max_reconnect_attempts} attempts")
-                    del self.reconnect_attempts[client_id]
-                    return
-                    
-                logger.warning(f"[RETRY] Reconnection attempt {self.reconnect_attempts[client_id]} failed: {e}")
-                await asyncio.sleep(self.reconnect_interval)
-
-    async def ping_client(self, websocket: WebSocket, client_id: int):
-        """Keep connection alive with periodic pings"""
-        try:
-            while True:
-                await asyncio.sleep(self.ping_interval)
-                try:
-                    await websocket.send_json({"type": "ping"})
-                except Exception as e:
-                    logger.warning(f"[PING] Failed to ping client [{client_id}]: {e}")
-                    if client_id not in self.reconnect_attempts:
-                        self.disconnect(websocket)
-                    break
-        except Exception as e:
-            logger.error(f"[ERROR] Ping task error for client [{client_id}]: {e}")
-            if client_id not in self.reconnect_attempts:
-                self.disconnect(websocket)
-
-# Create WebSocket manager instance
-ws_manager = WebSocketManager()
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await ws_manager.connect(websocket)
-    client_id = id(websocket)
-    
-    try:
-        while True:
-            try:
-                # Add timeout to receive_json
-                data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
-                
-                # Handle ping messages
-                if data.get('type') == 'ping':
-                    await websocket.send_json({"type": "pong"})
-                    continue
-                
-                logger.info(f"[RECEIVE] Message from client [{client_id}]: {data.get('type', 'unknown_type')}")
-                
-                if data.get('type') == 'process':
-                    transcript = data.get('transcript', '')
-                    if not transcript:
-                        logger.warning(f"[WARNING] Empty transcript from client [{client_id}]")
-                        await websocket.send_json({
-                            'success': False, 
-                            'error': 'No transcript provided'
-                        })
-                        continue
-
-                    logger.info(f"[PROCESS] Processing transcript: {transcript[:100]}...")
-                    
-                    # Analyze input type
-                    input_type = await analyze_input(transcript)
-                    logger.info(f"[ANALYSIS] Determined input type: {input_type}")
-                    
-                    # Route to appropriate service(s)
-                    if input_type == "conversation":
-                        logger.info("[ROUTE] Routing to AI service...")
-                        response = await call_ai_service({"transcript": transcript})
-                        logger.info("[AI] Received response from AI service")
-                    elif input_type == "animation":
-                        logger.info("[ROUTE] Routing to VTube service...")
-                        response = await call_vtube_service({"transcript": transcript})
-                        logger.info("[ROUTE] Also routing to AI service...")
-                        ai_response = await call_ai_service({"transcript": transcript})
-                        response.update(ai_response)
-                        logger.info("[COMBINE] Combined responses from services")
-                    
-                    logger.info(f"[SEND] Sending response back to client [{client_id}]")
-                    await websocket.send_json(response)
-                    logger.info("[SUCCESS] Response sent successfully")
-                    
-            except asyncio.TimeoutError:
-                # Send ping to check if connection is still alive
-                try:
-                    await websocket.send_json({"type": "ping"})
-                except WebSocketDisconnect:
-                    logger.info(f"[DISCONNECT] Client timed out and disconnected")
-                    ws_manager.disconnect(websocket)
-                    break
-            except WebSocketDisconnect:
-                ws_manager.disconnect(websocket)
-                break
-            except Exception as e:
-                logger.error(f"[ERROR] Error processing message: {str(e)}", exc_info=True)
-                try:
-                    await websocket.send_json({
-                        'success': False,
-                        'error': str(e)
-                    })
-                except WebSocketDisconnect:
-                    ws_manager.disconnect(websocket)
-                    break
-                
-    except Exception as e:
-        logger.error(f"[ERROR] WebSocket error: {str(e)}", exc_info=True)
-        ws_manager.disconnect(websocket)
-
 # Run the application
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting FastAPI application with Doppler configuration")
-    uvicorn.run(app, host="0.0.0.0", port=8015)
+    uvicorn.run(app, host="shiropc", port=8015)

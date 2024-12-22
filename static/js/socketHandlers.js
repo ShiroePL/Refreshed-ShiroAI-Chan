@@ -37,6 +37,11 @@ export class SocketHandler {
 
     async playAudioResponse(audioData) {
         try {
+            // Switch to trigger mode immediately when starting audio playback
+            if (window.speechHandler) {
+                window.speechHandler.switchToTriggerMode();
+            }
+
             // Convert base64 to audio buffer
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = Uint8Array.from(atob(audioData), c => c.charCodeAt(0)).buffer;

@@ -44,18 +44,15 @@ export class SpeechRecognitionHandler {
     }
 
     handleRecognitionEnd() {
-        if (this.state !== RecognitionStates.LISTENING_FOR_TRIGGER) {
-            console.log('Recognition ended');
-        }
+        console.log('Recognition ended, current state:', this.state);
         
+        // Always restart recognition if we're in LISTENING_FOR_TRIGGER state
         if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
             setTimeout(() => {
                 if (this.state === RecognitionStates.LISTENING_FOR_TRIGGER) {
                     this.startRecognition();
                 }
             }, 100);
-        } else {
-            this.setState(RecognitionStates.IDLE);
         }
     }
 
@@ -182,9 +179,13 @@ export class SpeechRecognitionHandler {
     }
 
     switchToTriggerMode() {
+        // Clean up existing recognition
         this.core.cleanup();
+        // Setup new recognition
         this.setupRecognition('en-US');
+        // Set state
         this.setState(RecognitionStates.LISTENING_FOR_TRIGGER);
+        // Start new recognition
         this.startRecognition();
     }
 

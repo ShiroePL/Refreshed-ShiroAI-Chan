@@ -245,7 +245,7 @@ if __name__ == "__main__":
     logger.info("[STARTUP] Starting AI service...")
     
     config = {
-        "host": "0.0.0.0",
+        "host": "shiropc",
         "port": 8013,
         "loop": "asyncio",
         "ws_ping_interval": 20,
