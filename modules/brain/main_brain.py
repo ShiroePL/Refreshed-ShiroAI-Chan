@@ -2,12 +2,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import logging
+import time  # Add this import
 from typing import Dict
 from pydantic import BaseModel, ValidationError
 import os
 from pathlib import Path
 from colorama import init, Fore, Style
-import time
+import asyncio
 # Initialize colorama for Windows compatibility
 init()
 
@@ -142,26 +143,25 @@ async def call_ai_service(data: Dict) -> Dict:
         logger.error(f"AI service request failed: {e}")
         raise HTTPException(status_code=502, detail=f"AI service request failed: {e}")
 
-async def call_vtube_service(data: Dict, animation_name: str) -> Dict:
-    """Forward request to VTube animation server with detailed logging."""
+async def call_vtube_service(animation_data: Dict) -> Dict:
+    """Asynchronously call VTube service for animation analysis"""
     try:
-        animation_data = {
-            "text": data["transcript"],
-            "mood": animation_name  # Animation server expects 'mood' parameter
-        }
-        
         async with httpx.AsyncClient() as client:
-            logger.info(f"Sending animation request: {animation_data}")
-            response = await client.post(f"{VTUBE_SERVICE_URL}/play_animation", json=animation_data)
+            # Modify log to avoid long audio data
+            log_data = animation_data.copy()
+            if 'ai_response' in log_data and 'audio' in log_data['ai_response']:
+                log_data['ai_response']['audio'] = '<audio_data>'
+            logger.info(f"Sending animation request: {log_data}")
+            response = await client.post(
+                f"{VTUBE_SERVICE_URL}/play_animation",
+                json=animation_data,
+                timeout=10.0  # Add timeout to prevent hanging
+            )
             response.raise_for_status()
             return response.json()
-    except httpx.RequestError as e:
-        logger.error(f"Animation server request failed: {e}")
-        raise HTTPException(status_code=502, detail=f"Animation server request failed: {e}")
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Animation server returned error: {e.response.status_code}, {e.response.text}")
-        raise HTTPException(status_code=502, detail=f"Animation server error: {e.response.status_code}, {e.response.text}")
-
+    except Exception as e:
+        logger.error(f"Animation analysis failed: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.post("/process")
 async def process_input(request: Request):
@@ -169,33 +169,36 @@ async def process_input(request: Request):
         data = await request.json()
         logger.info(f"Received data: {data}")
         
-        # Validate the input
-        try:
-            input_data = InputData(**data)
-        except ValidationError as ve:
-            logger.error(f"Validation error: {ve}")
-            raise HTTPException(status_code=400, detail="Invalid input data")
+        # Create tasks for parallel processing
+        ai_task = asyncio.create_task(call_ai_service(data))
         
-        # Analyze input type
-        input_type, animation_name = await analyze_input(input_data.transcript)
+        # Wait for AI response first since we need it for animation
+        ai_response = await ai_task
         
-        # Always get AI response first
-        ai_response = await call_ai_service(data)
-        
-        response = {
-            **ai_response,
-            'animation_data': None  # Default to no animation
+        # Now create animation analysis task
+        animation_data = {
+            "text": data["transcript"],
+            "ai_response": ai_response,
+            "context": {
+                "recent_mood": data.get("recent_mood"),
+                "conversation_context": data.get("context"),
+                "user_state": data.get("user_state")
+            }
         }
         
-        # If we have an animation, include it in response but don't trigger yet
-        if input_type == "animation":
-            animation_data = {
-                "text": data["transcript"],
-                "mood": animation_name
-            }
-            response['animation_data'] = animation_data
-            logger.info(f"Added animation data to response: {animation_data}")
-            
+        # Create animation task
+        animation_task = asyncio.create_task(call_vtube_service(animation_data))
+        
+        # Wait for all tasks to complete
+        animation_result = await animation_task
+        
+        # Combine results
+        response = {
+            **ai_response,
+            'animation_data': animation_result
+        }
+        
+        logger.info("All tasks completed successfully")
         return response
         
     except Exception as e:

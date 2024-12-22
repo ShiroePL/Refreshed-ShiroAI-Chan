@@ -42,7 +42,7 @@ def send_to_brain_service(data):
                     json=animation_data
                 )
                 animation_response.raise_for_status()
-                logger.info("Animation triggered successfully")
+                logger.info(f"Animation triggered successfully: {animation_data.get('message', 'unknown animation')}")
             except Exception as e:
                 logger.error(f"Failed to trigger animation: {e}")
         

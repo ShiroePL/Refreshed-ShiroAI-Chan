@@ -9,6 +9,8 @@ import threading
 import logging
 from flask_socketio import SocketIO
 import json
+from modules.vtube.animation_analyzer import AnimationAnalyzer
+from typing import Dict
 
 # Setup logging
 logging.basicConfig(level=logging.INFO,
@@ -21,6 +23,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 class AnimationController:
     def __init__(self):
         self.vtube_api = None
+        self.analyzer = AnimationAnalyzer()
         self.connect_to_vtube()
 
     def connect_to_vtube(self):
@@ -31,25 +34,21 @@ class AnimationController:
             logger.error(f"Failed to connect to VTube Studio: {e}")
             raise  # Re-raise to see the full error
 
-    def analyze_and_play_animation(self, text, mood=None):
-        """Analyze text and mood to determine appropriate animation"""
+    def analyze_and_play_animation(self, text: str, ai_response: Dict = None, context: Dict = None):
+        """Analyze text and context to determine appropriate animation"""
         try:
             if not self.vtube_api or not self.vtube_api.connected:
                 logger.error("VTube Studio API not connected")
                 return False, "VTube Studio not connected"
 
-            # Map mood directly to animation if provided
-            if mood:
-                animation = mood
-            # Otherwise analyze text
-            elif "happy" in text.lower():
-                animation = "happy"
-            elif "sad" in text.lower():
-                animation = "sad"
-            else:
-                animation = "introduce"  # default animation
+            # Use analyzer to determine best animation
+            animation, confidence = self.analyzer.analyze(
+                text=text,
+                ai_response=ai_response or {},
+                context=context or {}
+            )
 
-            logger.info(f"Playing animation: {animation}")
+            logger.info(f"Selected animation '{animation}' with confidence {confidence}")
             self.vtube_api.play_animation(animation)
             return True, f"Played animation: {animation}"
 
@@ -80,10 +79,11 @@ def play_animation():
 
         data = request.json
         text = data.get('text', '')
-        mood = data.get('mood')
+        ai_response = data.get('ai_response', {})
+        context = data.get('context', {})
         
-        logger.info(f"Received animation request - text: {text}, mood: {mood}")
-        success, message = animation_controller.analyze_and_play_animation(text, mood)
+        logger.info(f"Received animation request - text: {text}, ai_response: {ai_response}, context: {context}")
+        success, message = animation_controller.analyze_and_play_animation(text, ai_response, context)
         
         return jsonify({
             'success': success,
