@@ -159,79 +159,17 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
             "error": str(e)
         }
 
-# @app.websocket("/ws")
-# async def websocket_endpoint(websocket: WebSocket):
-#     await websocket.accept()
-#     client_id = id(websocket)
-#     logger.info(f"[CONNECT] New WebSocket client connected [ID: {client_id}]")
-    
-#     try:
-#         while True:
-#             try:
-#                 data = await websocket.receive_json()
-#                 logger.info(f"[RECEIVE] Message from client [{client_id}]: {data.get('type', 'unknown_type')}")
-                
-#                 if data.get('type') == 'generate':
-#                     transcript = data.get('transcript', '')
-#                     if not transcript:
-#                         logger.warning(f"[WARNING] Empty transcript from client [{client_id}]")
-#                         await websocket.send_json({
-#                             'success': False, 
-#                             'error': 'No transcript provided'
-#                         })
-#                         continue
-
-#                     logger.info(f"[RECEIVE] Processing transcript: {transcript[:100]}...")
-#                     result = await process_request(
-#                         transcript, 
-#                         app.state.groq_service, 
-#                         app.state.tts_service
-#                     )
-                    
-#                     logger.info(f"[SEND] Sending response to client [{client_id}]")
-#                     await websocket.send_json(result)
-#                     logger.info("[SUCCESS] Response sent successfully")
-                    
-#             except WebSocketDisconnect:
-#                 logger.info(f"[DISCONNECT] Client disconnected [{client_id}]")
-#                 break
-#             except Exception as e:
-#                 logger.error(f"[ERROR] WebSocket message processing failed: {e}", exc_info=True)
-#                 await websocket.send_json({
-#                     'success': False,
-#                     'error': str(e)
-#                 })
-                
-#     except Exception as e:
-#         logger.error(f"[ERROR] WebSocket connection error: {e}", exc_info=True)
-#     finally:
-#         logger.info(f"[DISCONNECT] WebSocket connection closed [{client_id}]")
-
 @app.post("/generate")
-async def generate_response(data: Dict):
-    """HTTP endpoint for generating responses"""
+async def generate(data: dict):
     try:
-        logger.info(f"[HTTP] Received POST request to /generate")
-        logger.info(f"[HTTP] Request data: {data}")
+        transcript = data.get('transcript', '')
+        result = await process_request(transcript, app.state.groq_service, app.state.tts_service)
         
-        transcript = data.get('transcript')
-        if not transcript:
-            logger.warning("[HTTP] No transcript provided in request")
-            raise HTTPException(status_code=400, detail="No transcript provided")
+        # Add debug logging
+        logger.info(f"Audio data type: {type(result.get('audio'))}")
+        logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
+        logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
         
-        logger.info(f"Processing HTTP request with transcript: {transcript}")
-        
-        result = await process_request(
-            transcript,
-            app.state.groq_service,
-            app.state.tts_service
-        )
-        
-        if not result['success']:
-            logger.error(f"[HTTP] Processing failed: {result.get('error')}")
-            raise HTTPException(status_code=500, detail=result['error'])
-        
-        logger.info("[HTTP] Successfully processed request")
         return result
         
     except HTTPException as he:

@@ -130,12 +130,10 @@ async def call_ai_service(data: Dict) -> Dict:
             response.raise_for_status()
             response_data = response.json()
             
-            logger.info(f"Brain received from AI: {response_data.keys()}")
+            # Add debug logging
             if 'audio' in response_data:
-                audio_length = len(response_data['audio']) if response_data['audio'] else 0
-                logger.info(f"Audio data present, length: {audio_length}")
-            else:
-                logger.warning("No audio data in AI response")
+                audio = response_data['audio']
+    
             
             return response_data
             
@@ -147,15 +145,21 @@ async def call_vtube_service(animation_data: Dict) -> Dict:
     """Asynchronously call VTube service for animation analysis"""
     try:
         async with httpx.AsyncClient() as client:
-            # Modify log to avoid long audio data
-            log_data = animation_data.copy()
-            if 'ai_response' in log_data and 'audio' in log_data['ai_response']:
-                log_data['ai_response']['audio'] = '<audio_data>'
+            # Create a copy for logging only
+            log_data = {
+                'text': animation_data['text'],
+                'ai_response': {
+                    'text': animation_data['ai_response']['text'],
+                    'audio': '<audio_data>' if 'audio' in animation_data['ai_response'] else None
+                },
+                'context': animation_data['context']
+            }
             logger.info(f"Sending animation request: {log_data}")
+            
             response = await client.post(
                 f"{VTUBE_SERVICE_URL}/play_animation",
                 json=animation_data,
-                timeout=10.0  # Add timeout to prevent hanging
+                timeout=10.0
             )
             response.raise_for_status()
             return response.json()

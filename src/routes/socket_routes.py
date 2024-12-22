@@ -27,6 +27,11 @@ def send_to_brain_service(data):
         response.raise_for_status()
         response_data = response.json()
         
+        # Add debug logging
+        if 'audio' in response_data:
+            audio = response_data['audio']
+            
+        
         # Strip out animation data before sending initial response
         animation_data = response_data.pop('animation_data', None)
         
