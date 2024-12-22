@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, request, jsonify
-from services.vtube.vtube_studio_api import VTubeStudioAPI
+from modules.vtube.vtube_studio_api import VTubeStudioAPI
 import threading
 import logging
 from flask_socketio import SocketIO

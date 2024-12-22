@@ -1,21 +1,15 @@
-import time
 from flask_socketio import emit
 import requests
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
-import websockets
-import json
 import asyncio
-from functools import partial
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
-from contextlib import asynccontextmanager
-from typing import Optional
-from asyncio import TimeoutError
-import websockets.exceptions
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -181,9 +175,6 @@ def handle_action(data):
             if success:
                 message = f"Tea timer started for {duration} seconds"
                 logger.info(message)
-                
-                # Send animation request to VTube server
-                trigger_animation(message, mood="introduction")
             else:
                 message = "Timer already running!"
                 logger.warning(message)

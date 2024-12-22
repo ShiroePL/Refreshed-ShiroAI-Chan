@@ -94,7 +94,7 @@ app.add_middleware(
 
 # Fetch service URLs from Doppler configuration or fallback to defaults
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://shiropc:8013")
-VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:8002")
+VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:5001")
 
 # Define the request model
 class InputData(BaseModel):
@@ -105,13 +105,20 @@ class ResponseData(BaseModel):
     audio: str | None = None  # Add audio field to response model
 
 async def analyze_input(text: str) -> str:
-    # """Determine the type of input and required processing"""
-    # animation_keywords = ['animate', 'expression', 'mood', 'happy', 'sad', 'angry']
-    # text_lower = text.lower()
-    # for keyword in animation_keywords:
-    #     if keyword in text_lower:
-    #         return "animation"
-    return "conversation"
+    """Determine the type of input and required processing"""
+    animation_keywords = {
+        'introduction': ['hello', 'hi', 'hey', 'greetings'],
+        # Add more animations and their trigger keywords here
+    }
+    
+    text_lower = text.lower()
+    
+    # Check for animation triggers
+    for animation, keywords in animation_keywords.items():
+        if any(keyword in text_lower for keyword in keywords):
+            return "animation", animation
+            
+    return "conversation", None
 
 async def call_ai_service(data: Dict) -> Dict:
     """Forward request to AI service with detailed logging."""
@@ -135,25 +142,29 @@ async def call_ai_service(data: Dict) -> Dict:
         logger.error(f"AI service request failed: {e}")
         raise HTTPException(status_code=502, detail=f"AI service request failed: {e}")
 
-async def call_vtube_service(data: Dict) -> Dict:
-    """Forward request to VTube service with detailed logging."""
+async def call_vtube_service(data: Dict, animation_name: str) -> Dict:
+    """Forward request to VTube animation server with detailed logging."""
     try:
+        animation_data = {
+            "text": data["transcript"],
+            "mood": animation_name  # Animation server expects 'mood' parameter
+        }
+        
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{VTUBE_SERVICE_URL}/animate", json=data)
+            logger.info(f"Sending animation request: {animation_data}")
+            response = await client.post(f"{VTUBE_SERVICE_URL}/play_animation", json=animation_data)
             response.raise_for_status()
             return response.json()
     except httpx.RequestError as e:
-        logger.error(f"VTube service request failed: {e}")
-        raise HTTPException(status_code=502, detail=f"VTube service request failed: {e}")
+        logger.error(f"Animation server request failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Animation server request failed: {e}")
     except httpx.HTTPStatusError as e:
-        logger.error(f"VTube service returned error: {e.response.status_code}, {e.response.text}")
-        raise HTTPException(status_code=502, detail=f"VTube service error: {e.response.status_code}, {e.response.text}")
+        logger.error(f"Animation server returned error: {e.response.status_code}, {e.response.text}")
+        raise HTTPException(status_code=502, detail=f"Animation server error: {e.response.status_code}, {e.response.text}")
 
 
 @app.post("/process")
 async def process_input(request: Request):
-    # print the current time for the request
-    print("Entered /process at", time.time())
     try:
         data = await request.json()
         logger.info(f"Received data: {data}")
@@ -166,20 +177,20 @@ async def process_input(request: Request):
             raise HTTPException(status_code=400, detail="Invalid input data")
         
         # Analyze input type
-        input_type = await analyze_input(input_data.transcript)
+        input_type, animation_name = await analyze_input(input_data.transcript)
         
         # Route to appropriate service
-        if input_type == "conversation":
-            response = await call_ai_service(data)
-            # Log the response structure
-            logger.info(f"AI service response structure: {response.keys()}")
-        elif input_type == "animation":
-            response = await call_vtube_service(data)
+        if input_type == "animation":
+            # Call VTube service with specific animation
+            vtube_response = await call_vtube_service(data, animation_name)
             # Also get AI response for animation requests
             ai_response = await call_ai_service(data)
-            # Ensure audio data is preserved when merging responses
-            response.update(ai_response)
+            # Combine responses
+            response = {**vtube_response, **ai_response}
             logger.info(f"Combined response structure: {response.keys()}")
+        else:  # conversation
+            response = await call_ai_service(data)
+            logger.info(f"AI service response structure: {response.keys()}")
         
         # Validate response has required fields
         if 'text' not in response:
