@@ -83,13 +83,22 @@ class VTubeStudioAPI:
             }
         }))
 
-    def play_animation(self, hotkeyID):
+    def play_animation(self, animation_name: str):
+        """
+        Play a VTube Studio animation by its name
+        Args:
+            animation_name (str): Name of the animation to play (e.g. 'introduction')
+        """
+        if not self.connected:
+            print("Not connected to VTube Studio")
+            return
+        
         self.ws.send(json.dumps({
             "apiName": "VTubeStudioPublicAPI",
             "apiVersion": "1.0",
             "requestID": "SomeID",
             "messageType": "HotkeyTriggerRequest",
             "data": {
-                "hotkeyID": hotkeyID
+                "hotkeyID": animation_name
             }
         }))

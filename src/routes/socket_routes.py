@@ -1,21 +1,15 @@
-import time
 from flask_socketio import emit
 import requests
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
 from src.utils.logging_config import handle_error
 import logging
-import websockets
-import json
 import asyncio
-from functools import partial
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
-from contextlib import asynccontextmanager
-from typing import Optional
-from asyncio import TimeoutError
-import websockets.exceptions
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +24,32 @@ def send_to_brain_service(data):
     try:
         # Make HTTP POST request to Brain service
         response = requests.post(BRAIN_SERVICE_URL, json=data)
-        response.raise_for_status()  # Raise exception for bad status codes
+        response.raise_for_status()
         response_data = response.json()
         
-        # Emit response to client
+        # Add debug logging
+        if 'audio' in response_data:
+            audio = response_data['audio']
+            
+        
+        # Strip out animation data before sending initial response
+        animation_data = response_data.pop('animation_data', None)
+        
+        # Emit response to client (this will trigger audio playback)
         emit('response', response_data)
+        
+        # If we have animation data, trigger it immediately after sending response
+        if animation_data:
+            try:
+                # Send animation request to VTube service
+                animation_response = requests.post(
+                    'http://localhost:5001/play_animation',
+                    json=animation_data
+                )
+                animation_response.raise_for_status()
+                logger.info(f"Animation triggered successfully: {animation_data.get('message', 'unknown animation')}")
+            except Exception as e:
+                logger.error(f"Failed to trigger animation: {e}")
         
         # Update overlay state based on response
         if hotkey_handler:
@@ -181,9 +196,6 @@ def handle_action(data):
             if success:
                 message = f"Tea timer started for {duration} seconds"
                 logger.info(message)
-                
-                # Send animation request to VTube server
-                trigger_animation(message, mood="introduction")
             else:
                 message = "Timer already running!"
                 logger.warning(message)

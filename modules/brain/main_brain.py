@@ -2,12 +2,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import logging
+import time  # Add this import
 from typing import Dict
 from pydantic import BaseModel, ValidationError
 import os
 from pathlib import Path
 from colorama import init, Fore, Style
-import time
+import asyncio
 # Initialize colorama for Windows compatibility
 init()
 
@@ -94,7 +95,7 @@ app.add_middleware(
 
 # Fetch service URLs from Doppler configuration or fallback to defaults
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://shiropc:8013")
-VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:8002")
+VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:5001")
 
 # Define the request model
 class InputData(BaseModel):
@@ -105,13 +106,20 @@ class ResponseData(BaseModel):
     audio: str | None = None  # Add audio field to response model
 
 async def analyze_input(text: str) -> str:
-    # """Determine the type of input and required processing"""
-    # animation_keywords = ['animate', 'expression', 'mood', 'happy', 'sad', 'angry']
-    # text_lower = text.lower()
-    # for keyword in animation_keywords:
-    #     if keyword in text_lower:
-    #         return "animation"
-    return "conversation"
+    """Determine the type of input and required processing"""
+    animation_keywords = {
+        'introduction': ['hello', 'hi', 'hey', 'greetings'],
+        # Add more animations and their trigger keywords here
+    }
+    
+    text_lower = text.lower()
+    
+    # Check for animation triggers
+    for animation, keywords in animation_keywords.items():
+        if any(keyword in text_lower for keyword in keywords):
+            return "animation", animation
+            
+    return "conversation", None
 
 async def call_ai_service(data: Dict) -> Dict:
     """Forward request to AI service with detailed logging."""
@@ -122,12 +130,10 @@ async def call_ai_service(data: Dict) -> Dict:
             response.raise_for_status()
             response_data = response.json()
             
-            logger.info(f"Brain received from AI: {response_data.keys()}")
+            # Add debug logging
             if 'audio' in response_data:
-                audio_length = len(response_data['audio']) if response_data['audio'] else 0
-                logger.info(f"Audio data present, length: {audio_length}")
-            else:
-                logger.warning("No audio data in AI response")
+                audio = response_data['audio']
+    
             
             return response_data
             
@@ -135,67 +141,70 @@ async def call_ai_service(data: Dict) -> Dict:
         logger.error(f"AI service request failed: {e}")
         raise HTTPException(status_code=502, detail=f"AI service request failed: {e}")
 
-async def call_vtube_service(data: Dict) -> Dict:
-    """Forward request to VTube service with detailed logging."""
+async def call_vtube_service(animation_data: Dict) -> Dict:
+    """Asynchronously call VTube service for animation analysis"""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{VTUBE_SERVICE_URL}/animate", json=data)
+            # Create a copy for logging only
+            log_data = {
+                'text': animation_data['text'],
+                'ai_response': {
+                    'text': animation_data['ai_response']['text'],
+                    'audio': '<audio_data>' if 'audio' in animation_data['ai_response'] else None
+                },
+                'context': animation_data['context']
+            }
+            logger.info(f"Sending animation request: {log_data}")
+            
+            response = await client.post(
+                f"{VTUBE_SERVICE_URL}/play_animation",
+                json=animation_data,
+                timeout=10.0
+            )
             response.raise_for_status()
             return response.json()
-    except httpx.RequestError as e:
-        logger.error(f"VTube service request failed: {e}")
-        raise HTTPException(status_code=502, detail=f"VTube service request failed: {e}")
-    except httpx.HTTPStatusError as e:
-        logger.error(f"VTube service returned error: {e.response.status_code}, {e.response.text}")
-        raise HTTPException(status_code=502, detail=f"VTube service error: {e.response.status_code}, {e.response.text}")
-
+    except Exception as e:
+        logger.error(f"Animation analysis failed: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.post("/process")
 async def process_input(request: Request):
-    # print the current time for the request
-    print("Entered /process at", time.time())
     try:
         data = await request.json()
         logger.info(f"Received data: {data}")
         
-        # Validate the input
-        try:
-            input_data = InputData(**data)
-        except ValidationError as ve:
-            logger.error(f"Validation error: {ve}")
-            raise HTTPException(status_code=400, detail="Invalid input data")
+        # Create tasks for parallel processing
+        ai_task = asyncio.create_task(call_ai_service(data))
         
-        # Analyze input type
-        input_type = await analyze_input(input_data.transcript)
+        # Wait for AI response first since we need it for animation
+        ai_response = await ai_task
         
-        # Route to appropriate service
-        if input_type == "conversation":
-            response = await call_ai_service(data)
-            # Log the response structure
-            logger.info(f"AI service response structure: {response.keys()}")
-        elif input_type == "animation":
-            response = await call_vtube_service(data)
-            # Also get AI response for animation requests
-            ai_response = await call_ai_service(data)
-            # Ensure audio data is preserved when merging responses
-            response.update(ai_response)
-            logger.info(f"Combined response structure: {response.keys()}")
+        # Now create animation analysis task
+        animation_data = {
+            "text": data["transcript"],
+            "ai_response": ai_response,
+            "context": {
+                "recent_mood": data.get("recent_mood"),
+                "conversation_context": data.get("context"),
+                "user_state": data.get("user_state")
+            }
+        }
         
-        # Validate response has required fields
-        if 'text' not in response:
-            logger.error("Response missing required 'text' field")
-            raise HTTPException(status_code=502, detail="Invalid service response")
-            
-        # Log final response structure
-        logger.info(f"Final response keys: {response.keys()}")
-        if 'audio' in response:
-            logger.info("Audio data present in final response")
-            
+        # Create animation task
+        animation_task = asyncio.create_task(call_vtube_service(animation_data))
+        
+        # Wait for all tasks to complete
+        animation_result = await animation_task
+        
+        # Combine results
+        response = {
+            **ai_response,
+            'animation_data': animation_result
+        }
+        
+        logger.info("All tasks completed successfully")
         return response
         
-    except httpx.RequestError as e:
-        logger.error(f"HTTP request error: {e}")
-        raise HTTPException(status_code=502, detail="Service request failed")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
