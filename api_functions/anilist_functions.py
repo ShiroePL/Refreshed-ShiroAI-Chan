@@ -1,8 +1,8 @@
 from shared_code.anilist import anilist_api_requests
-from shared_code import connect_to_phpmyadmin
+from modules.db_module import connect_to_phpmyadmin
 import hashlib
 import re
-from shared_code import api_keys
+from src.config import api_keys
 from modules.ai.services.groq_service import GroqService
 from src.config.azure_config import get_groq_api_keys
 

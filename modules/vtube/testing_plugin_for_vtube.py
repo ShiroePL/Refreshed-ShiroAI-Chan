@@ -3,9 +3,10 @@ import numpy as np
 import time
 import requests
 import json
+from src.config.service_config import VTUBE_MODULE_URL
 
 # Define the API endpoint for VTube Studio
-vtube_url = "ws://localhost:8001"
+vtube_url = VTUBE_MODULE_URL
 
 # Define the mouth shape mapping based on the audio amplitude and frequency
 def map_audio_to_mouth_shape(amplitude, frequency):

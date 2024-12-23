@@ -1,6 +1,6 @@
 import requests
 import webbrowser
-from .. import api_keys
+from src.config import api_keys
 client_id = api_keys.client_id
 client_secret = api_keys.client_secret
 

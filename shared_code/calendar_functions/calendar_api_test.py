@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import caldav
 from icalendar import Calendar, Event
-from .. import api_keys #this works if function is used from shiros functions
+from src.config import api_keys #this works if function is used from shiros functions
 from datetime import datetime
 import re
 from pytz import utc
