@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_socketio import SocketIO
-from src.assistant.assistant import AIAgent
+from modules.ai.assistant.assistant import AIAgent
 
 
 # Create Flask app
