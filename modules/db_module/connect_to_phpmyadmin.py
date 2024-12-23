@@ -1,4 +1,4 @@
-from shared_code import api_keys
+from src.config import api_keys
 import pymysql
 from decimal import Decimal
 host = api_keys.host_name

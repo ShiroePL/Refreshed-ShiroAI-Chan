@@ -1,5 +1,5 @@
 import requests
-from .. import api_keys
+from src.config import api_keys
 import json
 
 
