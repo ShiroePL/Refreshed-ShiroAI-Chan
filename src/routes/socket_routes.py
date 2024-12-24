@@ -126,10 +126,14 @@ def handle_audio_finished():
     """Handle audio playback finished event."""
     try:
         if hotkey_handler:
-            if assistant.listening:
-                hotkey_handler.set_state(AssistantState.LISTENING)
-            else:
+            # Check if we're in text mode
+            if hasattr(assistant, 'text_mode') and assistant.text_mode:
                 hotkey_handler.set_state(AssistantState.IDLE)
+            else:
+                if hasattr(assistant, 'listening') and assistant.listening:
+                    hotkey_handler.set_state(AssistantState.LISTENING)
+                else:
+                    hotkey_handler.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Audio finished handler")
 
@@ -228,4 +232,25 @@ def handle_action(data):
 def handle_keepalive():
     """Handle keepalive ping from client"""
     emit('keepalive_response', {'status': 'ok'})
+    
+@socketio.on('text_mode_start')
+def handle_text_mode_start():
+    """Handle switching to text-only mode"""
+    try:
+        # Set a flag on the assistant to indicate text mode
+        assistant.text_mode = True
+        assistant.listening = False
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.IDLE)
+    except Exception as e:
+        handle_error(logger, e, "Text mode start handler")
+
+@socketio.on('text_mode_end')
+def handle_text_mode_end():
+    """Handle switching back from text-only mode"""
+    try:
+        # Remove text mode flag
+        assistant.text_mode = False
+    except Exception as e:
+        handle_error(logger, e, "Text mode end handler")
     

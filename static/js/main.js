@@ -114,6 +114,17 @@ window.addEventListener('app-initialized', () => {
             const btn = document.getElementById(id);
             btn.disabled = e.target.checked;
         });
+
+        // Stop speech recognition if it's running when switching to text mode
+        if (e.target.checked) {
+            if (window.speechHandler) {
+                window.speechHandler.stop();
+                window.socket.emit('text_mode_start');
+            }
+            updateListeningUI(false);
+        } else {
+            window.socket.emit('text_mode_end');
+        }
     });
 
     // Add text input handling

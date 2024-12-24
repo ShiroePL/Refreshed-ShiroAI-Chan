@@ -113,9 +113,10 @@ export class SpeechRecognitionHandler {
                             break;
                         case RecognitionStates.LISTENING_FOR_COMMAND:
                         case RecognitionStates.PUSH_TO_TALK:
-                            // Send transcript directly to backend
+                            // Send transcript with skip_vtube state
                             this.socket.emit('transcript', { 
-                                transcript: transcript.trim() 
+                                transcript: transcript.trim(),
+                                skip_vtube: document.getElementById('skip-vtube-check').checked
                             });
                             // Immediately switch to trigger mode to listen for stop command
                             this.switchToTriggerMode();
