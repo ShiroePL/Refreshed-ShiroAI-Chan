@@ -64,3 +64,20 @@ body {
     width: 16px;
     height: 16px;
 } 
+
+#text-input-container {
+    transition: all 0.3s ease;
+}
+
+#text-input {
+    border-radius: 0.375rem 0 0 0.375rem;
+}
+
+#send-text-btn {
+    border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.input-group {
+    display: flex;
+    gap: 0;
+} 

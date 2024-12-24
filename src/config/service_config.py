@@ -1,7 +1,7 @@
 # Service URLs
-BRAIN_MODULE_URL = "http://shiropc:8015"
-AI_SERVICE_URL = "http://shiropc:8013"
-VTUBE_MODULE_URL = "http://shiropc:8002"
+BRAIN_MODULE_URL = "http://127.0.0.1:8015"
+AI_SERVICE_URL = "http://127.0.0.1:8013"
+VTUBE_MODULE_URL = "http://127.0.0.1:8002"
 FRONTEND_URL = "http://127.0.0.1:5000"
 
 # Logging configuration

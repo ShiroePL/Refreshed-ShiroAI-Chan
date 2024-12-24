@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 timer_service = TimerService()
 
 # Replace WebSocket URL with HTTP URL
-BRAIN_SERVICE_URL = 'http://shiropc:8015/process'
+BRAIN_SERVICE_URL = 'http://127.0.0.1:8015/process'
 
 def send_to_brain_service(data):
     """Send data to Brain service via HTTP"""
@@ -72,25 +72,19 @@ def handle_transcript(data):
     """Handle incoming transcription data."""
     try:
         transcript = data.get('transcript', '')
+        skip_vtube = data.get('skip_vtube', False)  # Add this line
         logger.info(f"[TRANSCRIPT] Received: {transcript}")
-        #print("received transcript at", time.time())
         
         if hotkey_handler:
-            #print("before hotkey_handler.set_state at", time.time())
             hotkey_handler.set_state(AssistantState.PROCESSING)
-            #print("after hotkey_handler.set_state at", time.time())
-        
-        # Add a timestamp before sending to Brain service
-        #print("preparing to send to brain service at", time.time())
-        
-        # Send to Brain service
+            
+        # Send to Brain service with skip_vtube flag
         send_to_brain_service({
             'type': 'process',
-            'transcript': transcript
+            'transcript': transcript,
+            'skip_vtube': skip_vtube  # Add this line
         })
         
-        # Add a timestamp after sending to Brain service
-        #print("sent to brain service at", time.time())
     except Exception as e:
         logger.error(f"[ERROR] Transcript handling failed: {e}")
         emit('error', {'message': str(e)})
