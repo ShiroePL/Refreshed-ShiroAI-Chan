@@ -103,7 +103,7 @@ export class TriggerCommandRegistry {
                 console.log('tea timer command triggered');
                 window.socket.emit('action', { 
                     type: 'tea_timer',
-                    duration: 15  // 3 minutes in seconds
+                    duration: 15  // 3 minutes in seconds 15s is for testing
                 });
                 return true;
             }

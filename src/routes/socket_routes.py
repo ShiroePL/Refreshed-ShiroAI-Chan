@@ -13,8 +13,8 @@ from src.services.timer_service import TimerService
 
 logger = logging.getLogger(__name__)
 
-# Initialize timer service
-timer_service = TimerService()
+# Initialize timer service with socketio instance
+timer_service = TimerService(socketio)
 
 # Replace WebSocket URL with HTTP URL
 BRAIN_SERVICE_URL = 'http://127.0.0.1:8015/process'
