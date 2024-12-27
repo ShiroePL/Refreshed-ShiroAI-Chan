@@ -1,6 +1,7 @@
 import time
 from groq import Groq
 import logging
+from modules.ai.services.prompt_builder import PromptBuilder
 
 logger = logging.getLogger("modules.ai.services.ai_service")
 
@@ -31,6 +32,7 @@ class GroqService:
         self.token_count = 0
         self.start_time = None
         self.basic_prompt = "You are Shiro, a helpful and cheerful AI assistant."
+        self.prompt_builder = PromptBuilder()
         
         try:
             api_key = self.api_keys[self.current_key_index]
@@ -51,18 +53,30 @@ class GroqService:
         self.client = Groq(api_key=self.api_keys[self.current_key_index])
         logger.debug(f"Rotated API key to: {self.current_key_index}")
 
-    def send_to_groq(self, user_message):
-        """Send a message to Groq API and get response"""
+    async def send_to_groq(self, 
+                          user_message: str,
+                          vector_db_service=None,
+                          chat_history_service=None,
+                          context_manager=None) -> str:
+        """Send a message to Groq API with dynamically built prompt"""
         try:
             self._update_token_tracking()
             
+            # Build the dynamic prompt
+            prompt = await self.prompt_builder.build_prompt(
+                user_message,
+                vector_db_service,
+                chat_history_service,
+                context_manager
+            )
+            
             messages = [
-                {"role": "system", "content": self.basic_prompt},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": user_message},
             ]
 
             completion = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
+                model="llama-3.3-70b-versatile",
                 messages=messages
             )
             

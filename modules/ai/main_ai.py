@@ -1,19 +1,14 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import logging
-import os
-from typing import Dict, Optional
+from typing import Dict
 from dotenv import load_dotenv
 from modules.ai.services.groq_service import GroqService
 from modules.ai.services.tts_service import TTSService
 from src.config.azure_config import get_groq_api_keys
-from pathlib import Path
 import uvicorn
-import json
 import asyncio
 from contextlib import asynccontextmanager
-from colorama import init, Fore, Style
-import sys
+from colorama import init
 from src.utils.logging_config import setup_logger
 
 # Initialize colorama
@@ -61,12 +56,17 @@ app.add_middleware(
 async def process_request(transcript: str, groq_service: GroqService, tts_service: TTSService) -> Dict:
     """Process a single request through the AI pipeline"""
     try:
-        logger.info(f"[RECEIVE] Processing request: {transcript[:100]}...")
+        logger.info(f"[RECEIVE] Processing request: {transcript[:30]}...")
         
-        # Get text response from Groq
+        # Get text response from Groq with all context services
         logger.info("[GROQ] Sending request to Groq API...")
-        text_response = groq_service.send_to_groq(transcript)
-        logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:100]}...")
+        text_response = await groq_service.send_to_groq(
+            transcript,
+            vector_db_service=app.state.vector_service,  # You'll need to initialize this
+            chat_history_service=app.state.history_service,  # You'll need to initialize this
+            context_manager=app.state.context_manager  # You'll need to initialize this
+        )
+        logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:30]}...")
         
         # Generate audio asynchronously
         logger.info("[TTS] Starting speech synthesis...")
@@ -95,6 +95,9 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
 async def generate(data: dict):
     try:
         transcript = data.get('transcript', '')
+
+
+
         result = await process_request(transcript, app.state.groq_service, app.state.tts_service)
         
         # Add debug logging

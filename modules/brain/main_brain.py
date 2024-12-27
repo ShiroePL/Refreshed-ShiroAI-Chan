@@ -1,13 +1,10 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import logging
-import time  # Add this import
 from typing import Dict
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 import os
-from pathlib import Path
-from colorama import init, Fore, Style
+from colorama import init
 import asyncio
 from src.utils.logging_config import setup_logger
 # Initialize colorama for Windows compatibility
@@ -62,7 +59,7 @@ async def call_ai_service(data: Dict) -> Dict:
     try:
         async with httpx.AsyncClient() as client:
             logger.info(f"Brain sending to AI service: {data}")
-            response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=30.0)
+            response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=15.0)
             response.raise_for_status()
             response_data = response.json()
             
