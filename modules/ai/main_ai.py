@@ -14,81 +14,13 @@ import asyncio
 from contextlib import asynccontextmanager
 from colorama import init, Fore, Style
 import sys
+from src.utils.logging_config import setup_logger
 
 # Initialize colorama
 init()
 
-class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors"""
-    
-    COLORS = {
-        'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
-        'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
-        
-        # Custom labels
-        'STARTUP': Fore.BLUE + Style.BRIGHT,
-        'INIT': Fore.CYAN + Style.BRIGHT,
-        'CONNECT': Fore.BLUE + Style.BRIGHT,
-        'DISCONNECT': Fore.MAGENTA,
-        'RECEIVE': Fore.GREEN,
-        'GROQ': Fore.YELLOW,
-        'TTS': Fore.MAGENTA,
-        'SEND': Fore.GREEN + Style.BRIGHT,
-        'SUCCESS': Fore.GREEN + Style.BRIGHT,
-        'WARNING': Fore.YELLOW + Style.BRIGHT,
-        'ERROR': Fore.RED + Style.BRIGHT,
-        'SHUTDOWN': Fore.RED,
-        'HTTP': Fore.BLUE,
-    }
-
-    def format(self, record):
-        if record.levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
-        
-        for label, color in self.COLORS.items():
-            if f"[{label}]" in record.msg:
-                record.msg = record.msg.replace(
-                    f"[{label}]",
-                    f"{color}[{label}]{Style.RESET_ALL}"
-                )
-        
-        return super().format(record)
-
-# Create logs directory
-Path("logs").mkdir(exist_ok=True)
-
-# Configure root logger first
-logging.basicConfig(level=logging.WARNING)  # Set others to WARNING by default
-
-# Configure our logger
-logger = logging.getLogger("modules.ai.main_ai")  # Use full module path
-logger.setLevel(logging.INFO)
-logger.propagate = False  # Prevent double logging
-
-# Console handler with colors
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(ColoredFormatter(
-    '%(asctime)s - %(levelname)s - %(message)s'
-))
-console_handler.setLevel(logging.INFO)
-
-# File handler without colors
-file_handler = logging.FileHandler('logs/ai.log')
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# Add handlers
-logger.handlers.clear()  # Clear any existing handlers
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-
-# Silence other loggers
-for logger_name in ['uvicorn', 'uvicorn.error', 'uvicorn.access', 'fastapi']:
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
+# Setup module-specific logger
+logger = setup_logger('ai')
 
 # Load environment variables
 load_dotenv()
@@ -166,9 +98,9 @@ async def generate(data: dict):
         result = await process_request(transcript, app.state.groq_service, app.state.tts_service)
         
         # Add debug logging
-        logger.info(f"Audio data type: {type(result.get('audio'))}")
-        logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
-        logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
+        #logger.info(f"Audio data type: {type(result.get('audio'))}")
+        #logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
+        #logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
         
         return result
         

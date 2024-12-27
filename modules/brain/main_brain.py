@@ -9,77 +9,13 @@ import os
 from pathlib import Path
 from colorama import init, Fore, Style
 import asyncio
+from src.utils.logging_config import setup_logger
 # Initialize colorama for Windows compatibility
 init()
+# Setup module-specific logger
+logger = setup_logger('brain')
 
 # Create custom logger formatter with colors
-class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors"""
-    
-    COLORS = {
-        'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
-        'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
-        
-        # Custom labels
-        'CONNECT': Fore.BLUE + Style.BRIGHT,
-        'DISCONNECT': Fore.MAGENTA,
-        'STATUS': Fore.CYAN,
-        'RECEIVE': Fore.GREEN,
-        'PROCESS': Fore.YELLOW,
-        'ANALYSIS': Fore.BLUE,
-        'ROUTE': Fore.MAGENTA,
-        'AI': Fore.CYAN + Style.BRIGHT,
-        'SEND': Fore.GREEN + Style.BRIGHT,
-        'SUCCESS': Fore.GREEN + Style.BRIGHT,
-        'WARNING': Fore.YELLOW + Style.BRIGHT,
-        'ERROR': Fore.RED + Style.BRIGHT,
-        'COMBINE': Fore.CYAN,
-    }
-
-    def format(self, record):
-        # Color the log level
-        if record.levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
-        
-        # Color the custom labels in the message [LABEL]
-        for label, color in self.COLORS.items():
-            if f"[{label}]" in record.msg:
-                record.msg = record.msg.replace(
-                    f"[{label}]",
-                    f"{color}[{label}]{Style.RESET_ALL}"
-                )
-        
-        return super().format(record)
-
-# Create logs directory if it doesn't exist
-Path("logs").mkdir(exist_ok=True)
-
-# Configure logging with colored formatter
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Console handler with colors
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(ColoredFormatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# File handler without colors (plain text)
-file_handler = logging.FileHandler('logs/brain.log')
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# Add both handlers
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-
-# Silence uvicorn access logs
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 # Initialize the FastAPI app
 app = FastAPI()
