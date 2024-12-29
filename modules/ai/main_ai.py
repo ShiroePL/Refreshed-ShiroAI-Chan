@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 from dotenv import load_dotenv
 import logging
+import httpx
 
 from modules.ai.services.ai_service import GroqService
 from modules.ai.services.tts_service import TTSService
 from src.config.azure_config import get_groq_api_keys
+from src.config.service_config import DB_MODULE_URL
 import uvicorn
 import asyncio
 from contextlib import asynccontextmanager
@@ -27,14 +29,22 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     try:
         logger.info("[STARTUP] Initializing AI services...")
+        
+        # Load API keys
         app.state.api_keys = get_groq_api_keys()
         logger.info("[INIT] API keys loaded successfully")
         
+        # Initialize Groq service
         app.state.groq_service = GroqService(app.state.api_keys)
         logger.info("[INIT] Groq service initialized")
         
+        # Initialize TTS service
         app.state.tts_service = TTSService()
         logger.info("[INIT] TTS service initialized")
+        
+        # Initialize other required services (can be None for now)
+        app.state.history_service = None  # TODO: Implement history service
+        app.state.context_manager = None  # TODO: Implement context manager
         
         logger.info("[SUCCESS] All services initialized successfully")
         yield
@@ -60,13 +70,22 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
     try:
         logger.info(f"[RECEIVE] Processing request: {transcript[:30]}...")
         
-        # Get text response from Groq with all context services
+        # Get text response from Groq with optional context services
         logger.info("[GROQ] Sending request to Groq API...")
+        
+        # Call DB module's vector service endpoint
+        async with httpx.AsyncClient() as client:
+            vector_response = await client.post(
+                f"{DB_MODULE_URL}/vector/query",
+                json={"query": transcript, "limit": 5}
+            )
+            vector_results = vector_response.json() if vector_response.status_code == 200 else None
+        
         text_response = await groq_service.send_to_groq(
             transcript,
-            vector_db_service=app.state.vector_service,  # You'll need to initialize this
-            chat_history_service=app.state.history_service,  # You'll need to initialize this
-            context_manager=app.state.context_manager  # You'll need to initialize this
+            vector_db_service=vector_results,  # Pass the results from DB module
+            chat_history_service=getattr(app.state, 'history_service', None),
+            context_manager=getattr(app.state, 'context_manager', None)
         )
         logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:30]}...")
         

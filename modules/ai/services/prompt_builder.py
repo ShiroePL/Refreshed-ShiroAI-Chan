@@ -98,7 +98,18 @@ class PromptBuilder:
         Fetches relevant context from vector database
         """
         try:
+            if not vector_service:
+                return "Vector service not available"
+            
+            if not hasattr(vector_service, 'query'):
+                logger.error("Vector service does not implement query method")
+                return "Vector service configuration error"
+            
+            # Use the new query method from VectorStoreService
             results = await vector_service.query(query, limit=max_results)
+            if not results:
+                return "No relevant context found"
+            
             return self._format_vector_results(results)
         except Exception as e:
             logger.error(f"Error fetching vector context: {e}")
@@ -134,7 +145,10 @@ class PromptBuilder:
         """
         formatted = []
         for result in results:
-            formatted.append(f"- {result.get('content', '')} (Relevance: {result.get('score', 0):.2f})")
+            # Access the text from metadata
+            text = result.get('metadata', {}).get('text', '')
+            score = result.get('score', 0)
+            formatted.append(f"- {text} (Relevance: {score:.2f})")
         return "\n".join(formatted)
     
     def _format_chat_history(self, messages: List[Dict]) -> str:
