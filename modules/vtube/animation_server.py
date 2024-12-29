@@ -11,11 +11,11 @@ from flask_socketio import SocketIO
 import json
 from modules.vtube.animation_analyzer import AnimationAnalyzer
 from typing import Dict
+from src.utils.logging_config import setup_logger
 
 # Setup logging
-logging.basicConfig(level=logging.INFO,
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger("animation")
+
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")

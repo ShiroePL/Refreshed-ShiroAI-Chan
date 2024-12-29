@@ -1,94 +1,23 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import logging
-import os
-from typing import Dict, Optional
+from typing import Dict
 from dotenv import load_dotenv
-from modules.ai.services.groq_service import GroqService
+import logging
+
+from modules.ai.services.ai_service import GroqService
 from modules.ai.services.tts_service import TTSService
 from src.config.azure_config import get_groq_api_keys
-from pathlib import Path
 import uvicorn
-import json
 import asyncio
 from contextlib import asynccontextmanager
-from colorama import init, Fore, Style
-import sys
+from colorama import init
+from src.utils.logging_config import setup_logger
 
 # Initialize colorama
 init()
 
-class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors"""
-    
-    COLORS = {
-        'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
-        'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
-        
-        # Custom labels
-        'STARTUP': Fore.BLUE + Style.BRIGHT,
-        'INIT': Fore.CYAN + Style.BRIGHT,
-        'CONNECT': Fore.BLUE + Style.BRIGHT,
-        'DISCONNECT': Fore.MAGENTA,
-        'RECEIVE': Fore.GREEN,
-        'GROQ': Fore.YELLOW,
-        'TTS': Fore.MAGENTA,
-        'SEND': Fore.GREEN + Style.BRIGHT,
-        'SUCCESS': Fore.GREEN + Style.BRIGHT,
-        'WARNING': Fore.YELLOW + Style.BRIGHT,
-        'ERROR': Fore.RED + Style.BRIGHT,
-        'SHUTDOWN': Fore.RED,
-        'HTTP': Fore.BLUE,
-    }
-
-    def format(self, record):
-        if record.levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
-        
-        for label, color in self.COLORS.items():
-            if f"[{label}]" in record.msg:
-                record.msg = record.msg.replace(
-                    f"[{label}]",
-                    f"{color}[{label}]{Style.RESET_ALL}"
-                )
-        
-        return super().format(record)
-
-# Create logs directory
-Path("logs").mkdir(exist_ok=True)
-
-# Configure root logger first
-logging.basicConfig(level=logging.WARNING)  # Set others to WARNING by default
-
-# Configure our logger
-logger = logging.getLogger("modules.ai.main_ai")  # Use full module path
-logger.setLevel(logging.INFO)
-logger.propagate = False  # Prevent double logging
-
-# Console handler with colors
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(ColoredFormatter(
-    '%(asctime)s - %(levelname)s - %(message)s'
-))
-console_handler.setLevel(logging.INFO)
-
-# File handler without colors
-file_handler = logging.FileHandler('logs/ai.log')
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# Add handlers
-logger.handlers.clear()  # Clear any existing handlers
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-
-# Silence other loggers
-for logger_name in ['uvicorn', 'uvicorn.error', 'uvicorn.access', 'fastapi']:
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
+# Setup module-specific logger
+logger = setup_logger('ai')
 
 # Load environment variables
 load_dotenv()
@@ -129,12 +58,17 @@ app.add_middleware(
 async def process_request(transcript: str, groq_service: GroqService, tts_service: TTSService) -> Dict:
     """Process a single request through the AI pipeline"""
     try:
-        logger.info(f"[RECEIVE] Processing request: {transcript[:100]}...")
+        logger.info(f"[RECEIVE] Processing request: {transcript[:30]}...")
         
-        # Get text response from Groq
+        # Get text response from Groq with all context services
         logger.info("[GROQ] Sending request to Groq API...")
-        text_response = groq_service.send_to_groq(transcript)
-        logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:100]}...")
+        text_response = await groq_service.send_to_groq(
+            transcript,
+            vector_db_service=app.state.vector_service,  # You'll need to initialize this
+            chat_history_service=app.state.history_service,  # You'll need to initialize this
+            context_manager=app.state.context_manager  # You'll need to initialize this
+        )
+        logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:30]}...")
         
         # Generate audio asynchronously
         logger.info("[TTS] Starting speech synthesis...")
@@ -163,12 +97,15 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
 async def generate(data: dict):
     try:
         transcript = data.get('transcript', '')
+
+
+
         result = await process_request(transcript, app.state.groq_service, app.state.tts_service)
         
         # Add debug logging
-        logger.info(f"Audio data type: {type(result.get('audio'))}")
-        logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
-        logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
+        #logger.info(f"Audio data type: {type(result.get('audio'))}")
+        #logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
+        #logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
         
         return result
         
@@ -186,7 +123,7 @@ if __name__ == "__main__":
     logger.info("[STARTUP] Starting AI service...")
     
     config = {
-        "host": "shiropc",
+        "host": "127.0.0.1",
         "port": 8013,
         "loop": "asyncio",
         "ws_ping_interval": 20,

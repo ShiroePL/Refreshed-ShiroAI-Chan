@@ -1,31 +1,101 @@
 import logging
-from .error_handler import handle_error
+from pathlib import Path
+from colorama import init, Fore, Style
+import sys
 
-def setup_logging():
-    # Configure root logger
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler()
-        ]
-    )
+# Initialize colorama
+init()
 
-    # Get the root logger
-    logger = logging.getLogger()
-
-    # Configure specific loggers
-    loggers_config = {
-        'werkzeug': logging.WARNING,
-        'engineio': logging.WARNING,
-        'socketio': logging.WARNING,
-        'httpx': logging.WARNING,
-        'httpcore': logging.WARNING,
-        'groq': logging.WARNING,
+class ColoredFormatter(logging.Formatter):
+    """Custom formatter with colors"""
+    
+    COLORS = {
+        'DEBUG': Fore.CYAN,
+        'INFO': Fore.GREEN,
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'CRITICAL': Fore.RED + Style.BRIGHT,
+        
+        # Custom labels
+        'STARTUP': Fore.BLUE + Style.BRIGHT,
+        'INIT': Fore.CYAN + Style.BRIGHT,
+        'CONNECT': Fore.BLUE + Style.BRIGHT,
+        'DISCONNECT': Fore.MAGENTA,
+        'RECEIVE': Fore.GREEN,
+        'GROQ': Fore.YELLOW,
+        'TTS': Fore.MAGENTA,
+        'SEND': Fore.GREEN + Style.BRIGHT,
+        'SUCCESS': Fore.GREEN + Style.BRIGHT,
+        'WARNING': Fore.YELLOW + Style.BRIGHT,
+        'ERROR': Fore.RED + Style.BRIGHT,
+        'SHUTDOWN': Fore.RED,
+        'HTTP': Fore.BLUE,
     }
 
-    # Apply configurations
-    for logger_name, level in loggers_config.items():
-        logging.getLogger(logger_name).setLevel(level)
+    def format(self, record):
+        if record.levelname in self.COLORS:
+            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
+        
+        for label, color in self.COLORS.items():
+            if f"[{label}]" in record.msg:
+                record.msg = record.msg.replace(
+                    f"[{label}]",
+                    f"{color}[{label}]{Style.RESET_ALL}"
+                )
+        
+        return super().format(record)
 
+def setup_logger(module_name: str) -> logging.Logger:
+    """
+    Setup a logger for a specific module with both console and file output
+    
+    Args:
+        module_name: Name of the module (e.g., 'ai', 'brain', 'main')
+        
+    Returns:
+        logging.Logger: Configured logger instance
+    """
+    # Create logs directory if it doesn't exist
+    Path("logs").mkdir(exist_ok=True)
+    
+    # Get or create logger
+    logger = logging.getLogger(module_name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False  # Prevent double logging
+    
+    # Clear any existing handlers
+    logger.handlers.clear()
+    
+    # Console handler with colors
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(ColoredFormatter(
+        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
+    ))
+    console_handler.setLevel(logging.INFO)
+    
+    # File handler without colors
+    file_handler = logging.FileHandler(f'logs/{module_name}.log')
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
+    ))
+    
+    # Add handlers
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    # Configure specific loggers to be less verbose
+    quiet_loggers = ['werkzeug', 'engineio', 'socketio', 'uvicorn', 
+                     'uvicorn.error', 'uvicorn.access', 'fastapi']
+    
+    for quiet_logger in quiet_loggers:
+        logging.getLogger(quiet_logger).setLevel(logging.WARNING)
+    
     return logger
+
+def handle_error(logger: logging.Logger, error: Exception, context: str, silent: bool = False):
+    """Centralized error handling"""
+    error_msg = f"{context}: {str(error)}"
+    if silent:
+        logger.debug(error_msg, exc_info=True)
+    else:
+        logger.error(error_msg, exc_info=True)

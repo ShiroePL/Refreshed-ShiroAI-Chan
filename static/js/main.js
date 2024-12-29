@@ -97,6 +97,62 @@ window.addEventListener('app-initialized', () => {
     window.socket.on('connect_error', () => {
         document.title = 'Voice Assistant Interface (Disconnected)';
     });
+
+    document.getElementById('text-mode-check').addEventListener('change', (e) => {
+        const textContainer = document.getElementById('text-input-container');
+        textContainer.style.display = e.target.checked ? 'block' : 'none';
+        
+        // Disable voice buttons when in text mode
+        const voiceButtons = [
+            'listenBtn',
+            'pushToTalkBtn',
+            'voiceToggleBtn',
+            'stopSpeakingBtn'
+        ];
+        
+        voiceButtons.forEach(id => {
+            const btn = document.getElementById(id);
+            btn.disabled = e.target.checked;
+        });
+
+        // Stop speech recognition if it's running when switching to text mode
+        if (e.target.checked) {
+            if (window.speechHandler) {
+                window.speechHandler.stop();
+                window.socket.emit('text_mode_start');
+            }
+            updateListeningUI(false);
+        } else {
+            window.socket.emit('text_mode_end');
+        }
+    });
+
+    // Add text input handling
+    document.getElementById('send-text-btn').addEventListener('click', sendTextMessage);
+    document.getElementById('text-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendTextMessage();
+        }
+    });
+
+    function sendTextMessage() {
+        const textInput = document.getElementById('text-input');
+        const message = textInput.value.trim();
+        
+        if (message) {
+            // Update the transcript display
+            document.getElementById('final').textContent = message;
+            
+            // Send to backend using the same socket event as voice
+            window.socket.emit('transcript', { 
+                transcript: message,
+                skip_vtube: document.getElementById('skip-vtube-check').checked
+            });
+            
+            // Clear the input
+            textInput.value = '';
+        }
+    }
 });
 
 // Cleanup on page unload

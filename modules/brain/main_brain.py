@@ -1,85 +1,18 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import logging
-import time  # Add this import
 from typing import Dict
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 import os
-from pathlib import Path
-from colorama import init, Fore, Style
+from colorama import init
 import asyncio
+from src.utils.logging_config import setup_logger
 # Initialize colorama for Windows compatibility
 init()
+# Setup module-specific logger
+logger = setup_logger('brain')
 
 # Create custom logger formatter with colors
-class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors"""
-    
-    COLORS = {
-        'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
-        'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
-        
-        # Custom labels
-        'CONNECT': Fore.BLUE + Style.BRIGHT,
-        'DISCONNECT': Fore.MAGENTA,
-        'STATUS': Fore.CYAN,
-        'RECEIVE': Fore.GREEN,
-        'PROCESS': Fore.YELLOW,
-        'ANALYSIS': Fore.BLUE,
-        'ROUTE': Fore.MAGENTA,
-        'AI': Fore.CYAN + Style.BRIGHT,
-        'SEND': Fore.GREEN + Style.BRIGHT,
-        'SUCCESS': Fore.GREEN + Style.BRIGHT,
-        'WARNING': Fore.YELLOW + Style.BRIGHT,
-        'ERROR': Fore.RED + Style.BRIGHT,
-        'COMBINE': Fore.CYAN,
-    }
-
-    def format(self, record):
-        # Color the log level
-        if record.levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
-        
-        # Color the custom labels in the message [LABEL]
-        for label, color in self.COLORS.items():
-            if f"[{label}]" in record.msg:
-                record.msg = record.msg.replace(
-                    f"[{label}]",
-                    f"{color}[{label}]{Style.RESET_ALL}"
-                )
-        
-        return super().format(record)
-
-# Create logs directory if it doesn't exist
-Path("logs").mkdir(exist_ok=True)
-
-# Configure logging with colored formatter
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Console handler with colors
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(ColoredFormatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# File handler without colors (plain text)
-file_handler = logging.FileHandler('logs/brain.log')
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-
-# Add both handlers
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-
-# Silence uvicorn access logs
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -94,7 +27,7 @@ app.add_middleware(
 )
 
 # Fetch service URLs from Doppler configuration or fallback to defaults
-AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://shiropc:8013")
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8013")
 VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:5001")
 
 # Define the request model
@@ -126,7 +59,7 @@ async def call_ai_service(data: Dict) -> Dict:
     try:
         async with httpx.AsyncClient() as client:
             logger.info(f"Brain sending to AI service: {data}")
-            response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=30.0)
+            response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=15.0)
             response.raise_for_status()
             response_data = response.json()
             
@@ -179,22 +112,25 @@ async def process_input(request: Request):
         # Wait for AI response first since we need it for animation
         ai_response = await ai_task
         
-        # Now create animation analysis task
-        animation_data = {
-            "text": data["transcript"],
-            "ai_response": ai_response,
-            "context": {
-                "recent_mood": data.get("recent_mood"),
-                "conversation_context": data.get("context"),
-                "user_state": data.get("user_state")
+        # Only proceed with animation if skip_vtube is False
+        skip_vtube = data.get('skip_vtube', False)
+        animation_result = None
+        
+        if not skip_vtube:
+            # Now create animation analysis task
+            animation_data = {
+                "text": data["transcript"],
+                "ai_response": ai_response,
+                "context": {
+                    "recent_mood": data.get("recent_mood"),
+                    "conversation_context": data.get("context"),
+                    "user_state": data.get("user_state")
+                }
             }
-        }
-        
-        # Create animation task
-        animation_task = asyncio.create_task(call_vtube_service(animation_data))
-        
-        # Wait for all tasks to complete
-        animation_result = await animation_task
+            
+            # Create animation task
+            animation_task = asyncio.create_task(call_vtube_service(animation_data))
+            animation_result = await animation_task
         
         # Combine results
         response = {
@@ -213,4 +149,4 @@ async def process_input(request: Request):
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting FastAPI application with Doppler configuration")
-    uvicorn.run(app, host="shiropc", port=8015)
+    uvicorn.run(app, host="127.0.0.1", port=8015)

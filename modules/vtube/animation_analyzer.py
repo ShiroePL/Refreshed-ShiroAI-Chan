@@ -1,7 +1,8 @@
 import logging
 from typing import Dict, Tuple
+from src.utils.logging_config import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("animation") 
 
 class AnimationAnalyzer:
     def __init__(self):

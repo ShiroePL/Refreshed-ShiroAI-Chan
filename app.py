@@ -1,8 +1,7 @@
-from src.utils.logging_config import setup_logging, handle_error
-import logging
+from src.utils.logging_config import setup_logger, handle_error
 
-# Setup logging first thing
-logger = setup_logging()
+# Setup main logger
+logger = setup_logger('main')
 
 from dotenv import load_dotenv
 from src.app_instance import socketio, app
@@ -12,6 +11,7 @@ load_dotenv()
 
 if __name__ == '__main__':
     try:
+        logger.info("[STARTUP] Starting main application...")
         socketio.run(
             app, 
             host="0.0.0.0", 

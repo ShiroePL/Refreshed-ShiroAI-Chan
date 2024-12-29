@@ -1,14 +1,14 @@
 import threading
 import time
-from flask_socketio import emit
 import logging
 
 logger = logging.getLogger(__name__)
 
 class TimerService:
-    def __init__(self):
+    def __init__(self, socketio):
         self.timer = None
         self.is_running = False
+        self.socketio = socketio
 
     def start_timer(self, duration):
         if self.is_running:
@@ -28,11 +28,11 @@ class TimerService:
                     break
                     
                 remaining = duration - int(time.time() - start_time)
-                emit('timer_update', {'remaining': remaining}, namespace='/')
+                self.socketio.emit('timer_update', {'remaining': remaining})
                 time.sleep(1)
 
             if self.is_running:
-                emit('timer_complete', namespace='/')
+                self.socketio.emit('timer_complete')
                 
         except Exception as e:
             logger.error(f"Timer error: {e}")

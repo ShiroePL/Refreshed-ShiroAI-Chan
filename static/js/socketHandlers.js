@@ -95,6 +95,18 @@ export class SocketHandler {
             console.error('Socket error:', error);
             document.getElementById('response').textContent = 'Error: ' + (error.message || 'Unknown error');
         });
+
+        // Add timer update handler
+        this.socket.on('timer_update', (data) => {
+            console.log('Timer update:', data);
+            this.updateTimerDisplay(data.remaining);
+        });
+
+        // Add timer complete handler
+        this.socket.on('timer_complete', () => {
+            console.log('Timer complete');
+            this.handleTimerComplete();
+        });
     }
 
     async playAudioResponse(audioData) {
@@ -159,5 +171,63 @@ export class SocketHandler {
                 '<i class="bi bi-volume-up-fill"></i> Voice On' : 
                 '<i class="bi bi-volume-mute-fill"></i> Voice Off';
         }
+    }
+
+    updateTimerDisplay(remainingSeconds) {
+        const timerDisplay = document.getElementById('timer-display');
+        if (!timerDisplay) {
+            console.error('Timer display element not found!');
+            return;
+        }
+        
+        console.log('Updating timer display:', {
+            remainingSeconds,
+            currentDisplay: timerDisplay.style.display,
+            element: timerDisplay
+        });
+
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        
+        document.getElementById('timer-minutes').textContent = String(minutes).padStart(2, '0');
+        document.getElementById('timer-seconds').textContent = String(seconds).padStart(2, '0');
+        
+        // Force display block and remove any hiding class
+        timerDisplay.style.display = 'block';
+        timerDisplay.classList.remove('hiding');
+    }
+
+    handleTimerComplete() {
+        const timerDisplay = document.getElementById('timer-display');
+        if (!timerDisplay) {
+            console.error('Timer display element not found!');
+            return;
+        }
+        
+        console.log('Timer complete, playing sound and hiding display');
+        
+        // Create and play a pleasant "ding" sound
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.8);
+        
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+        
+        // Animate and hide the timer display
+        timerDisplay.classList.add('hiding');
+        setTimeout(() => {
+            timerDisplay.style.display = 'none';
+            timerDisplay.classList.remove('hiding');
+        }, 300);
     }
 } 

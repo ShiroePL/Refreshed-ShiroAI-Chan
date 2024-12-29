@@ -2,22 +2,20 @@ from flask_socketio import emit
 import requests
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
-from src.utils.logging_config import handle_error
-import logging
+from src.utils.logging_config import setup_logger, handle_error
 import asyncio
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
 
+# Setup module-specific logger
+logger = setup_logger('socket_routes')
 
-
-logger = logging.getLogger(__name__)
-
-# Initialize timer service
-timer_service = TimerService()
+# Initialize timer service with socketio instance
+timer_service = TimerService(socketio)
 
 # Replace WebSocket URL with HTTP URL
-BRAIN_SERVICE_URL = 'http://shiropc:8015/process'
+BRAIN_SERVICE_URL = 'http://127.0.0.1:8015/process'
 
 def send_to_brain_service(data):
     """Send data to Brain service via HTTP"""
@@ -72,25 +70,19 @@ def handle_transcript(data):
     """Handle incoming transcription data."""
     try:
         transcript = data.get('transcript', '')
+        skip_vtube = data.get('skip_vtube', False)  # Add this line
         logger.info(f"[TRANSCRIPT] Received: {transcript}")
-        #print("received transcript at", time.time())
         
         if hotkey_handler:
-            #print("before hotkey_handler.set_state at", time.time())
             hotkey_handler.set_state(AssistantState.PROCESSING)
-            #print("after hotkey_handler.set_state at", time.time())
-        
-        # Add a timestamp before sending to Brain service
-        #print("preparing to send to brain service at", time.time())
-        
-        # Send to Brain service
+            
+        # Send to Brain service with skip_vtube flag
         send_to_brain_service({
             'type': 'process',
-            'transcript': transcript
+            'transcript': transcript,
+            'skip_vtube': skip_vtube  # Add this line
         })
         
-        # Add a timestamp after sending to Brain service
-        #print("sent to brain service at", time.time())
     except Exception as e:
         logger.error(f"[ERROR] Transcript handling failed: {e}")
         emit('error', {'message': str(e)})
@@ -132,10 +124,14 @@ def handle_audio_finished():
     """Handle audio playback finished event."""
     try:
         if hotkey_handler:
-            if assistant.listening:
-                hotkey_handler.set_state(AssistantState.LISTENING)
-            else:
+            # Check if we're in text mode
+            if hasattr(assistant, 'text_mode') and assistant.text_mode:
                 hotkey_handler.set_state(AssistantState.IDLE)
+            else:
+                if hasattr(assistant, 'listening') and assistant.listening:
+                    hotkey_handler.set_state(AssistantState.LISTENING)
+                else:
+                    hotkey_handler.set_state(AssistantState.IDLE)
     except Exception as e:
         handle_error(logger, e, "Audio finished handler")
 
@@ -234,4 +230,25 @@ def handle_action(data):
 def handle_keepalive():
     """Handle keepalive ping from client"""
     emit('keepalive_response', {'status': 'ok'})
+    
+@socketio.on('text_mode_start')
+def handle_text_mode_start():
+    """Handle switching to text-only mode"""
+    try:
+        # Set a flag on the assistant to indicate text mode
+        assistant.text_mode = True
+        assistant.listening = False
+        if hotkey_handler:
+            hotkey_handler.set_state(AssistantState.IDLE)
+    except Exception as e:
+        handle_error(logger, e, "Text mode start handler")
+
+@socketio.on('text_mode_end')
+def handle_text_mode_end():
+    """Handle switching back from text-only mode"""
+    try:
+        # Remove text mode flag
+        assistant.text_mode = False
+    except Exception as e:
+        handle_error(logger, e, "Text mode end handler")
     

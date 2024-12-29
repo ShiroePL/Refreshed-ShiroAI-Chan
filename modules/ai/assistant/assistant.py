@@ -12,6 +12,10 @@ class AIAgent:
             api_keys = get_groq_api_keys()
             self.groq_service = GroqService(api_keys)
             
+            # Add text mode and listening flags
+            self.text_mode = False
+            self.listening = False
+            
             # Define the tool selection prompt
             self.tool_selection_prompt = """You are an AI assistant tasked with analyzing user input and determining the appropriate tool to handle it.
             Available tools:

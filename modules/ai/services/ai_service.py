@@ -1,69 +1,68 @@
-import time
-from groq import Groq
+from typing import Optional, Dict, Union, List
 import logging
+from datetime import datetime, timedelta
+from groq import Groq
+from modules.ai.services.prompt_builder import PromptBuilder
+from src.utils.error_handler import handle_error
 
-logger = logging.getLogger("modules.ai.services.ai_service")
-
-def handle_error(logger, error, context):
-    """Local error handler"""
-    logger.error(f"Error in {context}: {str(error)}")
-    return str(error)
-
-def mask_api_key(key: str) -> str:
-    """Mask API key for logging"""
-    if len(key) < 8:
-        return "****"
-    return f"{key[:4]}...{key[-4:]}"
+logger = logging.getLogger(__name__)
 
 class GroqService:
-    def __init__(self, api_keys):
-        logger.info(f"Initializing GroqService with api_keys type: {type(api_keys)}")
-        if not isinstance(api_keys, list):
-            logger.error(f"Expected api_keys to be a list, got {type(api_keys)}")
-            raise TypeError(f"api_keys must be a list, got {type(api_keys)}")
+    def __init__(self, api_keys: Union[Dict, List]):
+        # Handle both list and dict formats
+        if isinstance(api_keys, list):
+            logger.info(f"Initializing GroqService with api_keys type: {type(api_keys)}")
+            logger.info(f"Using API key: {api_keys[0][:4]}...{api_keys[0][-4:]}")
+            api_key = api_keys[0]
+        else:
+            logger.info(f"Initializing GroqService with api_keys type: {type(api_keys)}")
+            api_key = api_keys.get("groq")
+            if api_key:
+                logger.info(f"Using API key: {api_key[:4]}...{api_key[-4:]}")
             
-        if not api_keys:
-            logger.error("api_keys list is empty")
-            raise ValueError("api_keys list cannot be empty")
+        if not api_key:
+            raise ValueError("No Groq API key provided")
             
-        self.api_keys = api_keys
-        self.current_key_index = 0
-        self.token_count = 0
-        self.start_time = None
-        self.basic_prompt = "You are Shiro, a helpful and cheerful AI assistant."
+        self.client = Groq(api_key=api_key)
+        self.prompt_builder = PromptBuilder()
+        self.total_tokens = 0
+        self.last_reset = datetime.now()
+        self.token_limit = 6000  # per minute (100k for a day)
+        self.token_reset_interval = timedelta(hours=24)
+        logger.info("Groq service initialized successfully")
         
-        try:
-            api_key = self.api_keys[self.current_key_index]
-            logger.info(f"Using API key: {mask_api_key(api_key)}")  # Use masking function
-            self.client = Groq(api_key=api_key)
-            logger.info("Groq service initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize Groq client: {str(e)}")
-            handle_error(logger, e, "Groq service initialization")
-            raise
-
-    def reset_token_count(self):
-        self.token_count = 0
-        self.start_time = None
-
-    def rotate_api_key(self):
-        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-        self.client = Groq(api_key=self.api_keys[self.current_key_index])
-        logger.debug(f"Rotated API key to: {self.current_key_index}")
-
-    def send_to_groq(self, user_message):
-        """Send a message to Groq API and get response"""
+    async def send_to_groq(self, 
+                          user_message: str,
+                          vector_db_service=None,
+                          chat_history_service=None,
+                          context_manager=None) -> str:
+        """Send a message to Groq API with dynamically built prompt"""
         try:
             self._update_token_tracking()
             
+            if self._is_rate_limited():
+                return "I'm sorry, but I've reached my token limit for now. Please try again later."
+            
+            # Build the dynamic prompt
+            prompt = await self.prompt_builder.build_prompt(
+                user_message,
+                vector_db_service,
+                chat_history_service,
+                context_manager
+            )
+            
             messages = [
-                {"role": "system", "content": self.basic_prompt},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": user_message},
             ]
 
             completion = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
-                messages=messages
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1000,
+                top_p=0.9,
+                stop=None
             )
             
             answer = completion.choices[0].message.content
@@ -75,26 +74,37 @@ class GroqService:
             handle_error(logger, e, "Groq API request")
             return "I apologize, but I encountered an error processing your request."
 
+    def _is_rate_limited(self) -> bool:
+        """Check if we've exceeded our token limit"""
+        if self.total_tokens >= self.token_limit:
+            time_since_reset = datetime.now() - self.last_reset
+            if time_since_reset < self.token_reset_interval:
+                return True
+            self._reset_token_count()
+        return False
+
+    def _reset_token_count(self):
+        """Reset token count and update last reset time"""
+        self.total_tokens = 0
+        self.last_reset = datetime.now()
+        logger.info("Token count reset")
+
     def _update_token_tracking(self):
-        """Update token tracking and rotate API key if needed"""
-        try:
-            if self.start_time is None:
-                self.start_time = time.time()
+        """Check and update token tracking"""
+        time_since_reset = datetime.now() - self.last_reset
+        if time_since_reset >= self.token_reset_interval:
+            self._reset_token_count()
 
-            elapsed_time = time.time() - self.start_time
-            
-            if elapsed_time > 60:
-                self.reset_token_count()
-                self.start_time = time.time()
-
-            if self.token_count >= 6000:
-                self.rotate_api_key()
-                self.reset_token_count()
-                self.start_time = time.time()
-        except Exception as e:
-            handle_error(logger, e, "Token tracking update", silent=True)
-
-    def _update_token_count(self, tokens):
-        """Update token count and log"""
-        self.token_count += tokens
-        logger.info(f"Total tokens in rotation: {self.token_count}")
+    def _update_token_count(self, tokens: int):
+        """Update the total token count"""
+        self.total_tokens += tokens
+        logger.debug(f"Total tokens used: {self.total_tokens}")
+        
+    def get_token_info(self) -> Dict:
+        """Get current token usage information"""
+        return {
+            "total_tokens": self.total_tokens,
+            "token_limit": self.token_limit,
+            "last_reset": self.last_reset.isoformat(),
+            "next_reset": (self.last_reset + self.token_reset_interval).isoformat()
+        }
