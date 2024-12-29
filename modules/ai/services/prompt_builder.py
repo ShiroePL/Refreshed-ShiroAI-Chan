@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 from src.utils.logging_config import setup_logger
 from datetime import datetime
+import aiohttp
 
 logger = setup_logger("prompt_builder")
 
@@ -81,15 +82,16 @@ class PromptBuilder:
             logger.error(f"Error fetching vector context: {e}")
             return "Error fetching relevant context"
     
-    async def _get_chat_history(self,
-                               history_service: object,
-                               max_messages: int = 30) -> str:
-        """
-        Fetches recent chat history from MariaDB
-        """
+    async def _get_chat_history(self, history_service: object, max_messages: int = 30) -> str:
+        """Fetches recent chat history from DB service"""
         try:
-            messages = await history_service.get_recent_messages(limit=max_messages)
-            return self._format_chat_history(messages)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"http://db-service:8000/chat/history/{user_id}", # this need to be changed to the urls in separete file
+                    params={"limit": max_messages}
+                ) as response:
+                    messages = await response.json()
+                    return self._format_chat_history(messages)
         except Exception as e:
             logger.error(f"Error fetching chat history: {e}")
             return "Error fetching chat history"
