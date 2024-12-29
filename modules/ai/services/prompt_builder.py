@@ -1,9 +1,31 @@
 from typing import List, Dict, Optional
-from src.utils.logging_config import setup_logger
 from datetime import datetime
 import aiohttp
+import logging
+from pathlib import Path
 
-logger = setup_logger("prompt_builder")
+# Setup logging
+logger = logging.getLogger("prompt_builder")
+logger.setLevel(logging.INFO)
+
+# Create logs directory if it doesn't exist
+Path("logs").mkdir(exist_ok=True)
+
+# Add handlers if none exist
+if not logger.handlers:
+    # File handler
+    file_handler = logging.FileHandler('logs/prompt_builder.log')
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
+    ))
+    logger.addHandler(file_handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
+    ))
+    logger.addHandler(console_handler)
 
 class PromptBuilder:
     def __init__(self):

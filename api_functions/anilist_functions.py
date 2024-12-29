@@ -3,17 +3,15 @@ from modules.db_module import connect_to_phpmyadmin
 import hashlib
 import re
 from src.config import api_keys
-from modules.ai.services.groq_service import GroqService
-from src.config.azure_config import get_groq_api_keys
-
-# Initialize Groq service with API keys from config
-api_keys_list = get_groq_api_keys()
-groq_service = GroqService(api_keys_list)
+from api_functions.anilist_ai_service import AnimeAIService
 
 host = api_keys.host_name
 database = api_keys.db_name
 user = api_keys.user_name
 password = api_keys.db_password
+
+# Initialize the AI service
+anime_ai_service = AnimeAIService()
 
 def hash_username(username):
     # Remove any characters that are not alphanumeric (letters and numbers)
@@ -35,7 +33,6 @@ def get_progress_emoji(progress, total, content_type):
             return "📺"
         else:
             return "📖"
-
 
 async def show_media_list(content_type):
     """Get the 10 newest anime/manga formatted for prompt
@@ -87,13 +84,10 @@ async def update_media_list(user_question, content_type):
         media_list,_ = anilist_api_requests.get_10_newest_entries(content_type)
 
         question = f"Madrus: I will give you list of my 10 most recent watched/read {content_type} from site AniList. Here is this list:{media_list}. I want you to remember this because in next question I will ask you to update episodes/chapters of one of them."
-        #print("question from user:" + question)
         database_messages.append({"role": "user", "content": question})
         
-        # send to open ai for answer !!!!!!!! I WONT SEND IT BECOUSE I ALREADY GOT IT FROM reformatting
+        # send to open ai for answer
         answer = "Okay, I will remember it, Madrus. I'm waiting for your next question. Give it to me nyaa."
-    
-        #database_messages.append({"role": "assistant", "content": answer})   
         database_messages.append({"role": "assistant", "content": answer})
 
         #################################################################################################
@@ -105,10 +99,14 @@ async def update_media_list(user_question, content_type):
 
         print("database_messages: " + str(database_messages))
 
-         # send to open ai for answer
-        answer, prompt_tokens, completion_tokens, total_tokens = groq_service.send_to_groq(database_messages)
-        print("answer from OpenAI: " + answer)
-            # START find ID and episodes number of updated anime
+        # Process through AI service
+        answer = await anime_ai_service.process_anime_update(user_question, database_messages)
+        if not answer:
+            return "Oh, something went wrong while updating your media list."
+            
+        print("answer from AI: " + answer)
+        
+        # START find ID and episodes number of updated anime
         # The regex pattern             
         pattern = r"id:\s*(\d+),\s*episodes:\s*(\d+)" if content_type == "ANIME" else r"id:\s*(\d+),\s*chapters:\s*(\d+)"
 
@@ -121,17 +119,10 @@ async def update_media_list(user_question, content_type):
             updated_info = match.group(2)
             print(f"reformatted request: id:{updated_id}, type:{content_type}: ep/chap{updated_info}")
             
-
-            anilist_api_requests.change_progress(updated_id, updated_info,content_type)
-
-            
-                # Save to database 
-            connect_to_phpmyadmin.send_chatgpt_usage_to_database(prompt_tokens, completion_tokens, total_tokens) #to Azure DB with usage stats
-            print("---------saved to db-------------")
+            anilist_api_requests.change_progress(updated_id, updated_info, content_type)
             return answer
 
-
-        
+        return "Could not parse the AI response correctly."
 
     except Exception as e: 
         print(e)

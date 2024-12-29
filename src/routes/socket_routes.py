@@ -2,16 +2,14 @@ from flask_socketio import emit
 import requests
 from src.app_instance import socketio, assistant, hotkey_handler
 from src.services.status_overlay import AssistantState
-from src.utils.logging_config import handle_error
-import logging
+from src.utils.logging_config import setup_logger, handle_error
 import asyncio
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
 
-
-
-logger = logging.getLogger(__name__)
+# Setup module-specific logger
+logger = setup_logger('socket_routes')
 
 # Initialize timer service with socketio instance
 timer_service = TimerService(socketio)

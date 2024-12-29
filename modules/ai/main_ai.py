@@ -2,7 +2,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 from dotenv import load_dotenv
-from modules.ai.services.groq_service import GroqService
+import logging
+
+from modules.ai.services.ai_service import GroqService
 from modules.ai.services.tts_service import TTSService
 from src.config.azure_config import get_groq_api_keys
 import uvicorn
