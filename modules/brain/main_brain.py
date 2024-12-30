@@ -61,15 +61,7 @@ async def call_ai_service(data: Dict) -> Dict:
             logger.info(f"Brain sending to AI service: {data}")
             response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=15.0)
             response.raise_for_status()
-            response_data = response.json()
-            
-            # Add debug logging
-            if 'audio' in response_data:
-                audio = response_data['audio']
-    
-            
-            return response_data
-            
+            return response.json()
     except httpx.RequestError as e:
         logger.error(f"AI service request failed: {e}")
         raise HTTPException(status_code=502, detail=f"AI service request failed: {e}")
