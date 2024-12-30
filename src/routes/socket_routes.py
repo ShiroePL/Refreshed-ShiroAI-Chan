@@ -7,6 +7,7 @@ import asyncio
 from windows_functions.govee_mode_changer import change_lights_mode
 from api_functions.anilist_functions import show_media_list
 from src.services.timer_service import TimerService
+import uuid
 
 # Setup module-specific logger
 logger = setup_logger('socket_routes')
@@ -21,15 +22,23 @@ def send_to_brain_service(data):
     """Send data to Brain service via HTTP"""
     try:
         # Make HTTP POST request to Brain service
-        response = requests.post(BRAIN_SERVICE_URL, json=data)
+        response = requests.post(BRAIN_SERVICE_URL, json={
+            'transcript': data.get('transcript', ''),
+            'skip_vtube': data.get('skip_vtube', False),
+            'context': data.get('context', {}),
+            'conversation_id': str(uuid.uuid4())  # Generate unique ID for each request
+        })
         response.raise_for_status()
         response_data = response.json()
         
-        # Add debug logging
-        if 'audio' in response_data:
-            audio = response_data['audio']
+        # If it's a long-running task, emit the processing status
+        if response_data.get('status') == 'processing':
+            emit('response', {
+                'status': 'processing',
+                'conversation_id': response_data.get('conversation_id')
+            })
+            return None
             
-        
         # Strip out animation data before sending initial response
         animation_data = response_data.pop('animation_data', None)
         
@@ -57,7 +66,7 @@ def send_to_brain_service(data):
                 hotkey_handler.set_state(AssistantState.LISTENING)
                 
         return response_data
-            
+        
     except Exception as e:
         logger.error(f"[ERROR] Brain service communication failed: {e}")
         if hotkey_handler:
