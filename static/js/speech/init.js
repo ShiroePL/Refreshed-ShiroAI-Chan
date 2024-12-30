@@ -7,6 +7,7 @@ window.speechHandler = null;
 window.socketHandler = null;
 window.socket = null;
 window.isPageVisible = true;
+window.BRAIN_SERVICE_URL = 'http://127.0.0.1:8015';
 
 // Initialize everything after DOM is loaded
 async function initializeApp() {
@@ -18,6 +19,19 @@ async function initializeApp() {
         autoConnect: true
     });
     window.socket = socket;
+
+    // Add reconnection handlers
+    socket.on('reconnect', (attemptNumber) => {
+        console.log('Reconnected on attempt:', attemptNumber);
+        // Reinitialize handlers if needed
+        if (window.speechHandler) {
+            window.speechHandler.initialize();
+        }
+    });
+
+    socket.on('reconnect_error', (error) => {
+        console.log('Reconnection error:', error);
+    });
 
     try {
         // Create and initialize handlers
@@ -39,23 +53,41 @@ async function initializeApp() {
 }
 
 // Page visibility and wake lock handling
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
     window.isPageVisible = document.visibilityState === 'visible';
     
     if (!window.isPageVisible) {
-        try {
-            if ('wakeLock' in navigator) {
-                navigator.wakeLock.request('screen').catch(console.error);
+        // Only try wake lock if the API is available
+        if ('wakeLock' in navigator) {
+            try {
+                // Store the wake lock instance
+                window.wakeLock = await navigator.wakeLock.request('screen');
+                
+                // Release it when the page becomes visible again
+                window.wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock was released');
+                });
+            } catch (err) {
+                // Log but don't throw - this is an expected error when page isn't visible
+                console.log('Wake Lock error:', err.name, err.message);
             }
-        } catch (err) {
-            console.warn('Wake Lock API not supported', err);
+        }
+    } else {
+        // Release wake lock when page becomes visible
+        if (window.wakeLock) {
+            try {
+                await window.wakeLock.release();
+                window.wakeLock = null;
+            } catch (err) {
+                console.log('Error releasing wake lock:', err);
+            }
         }
     }
 });
 
 // Keep alive functionality
 setInterval(() => {
-    if (!window.isPageVisible && window.socket) {
+    if (!window.isPageVisible && window.socket && window.socket.connected) {
         window.socket.emit('keepalive');
     }
 }, 30000);

@@ -85,25 +85,34 @@ body {
 .timer-container {
     display: none;
     position: fixed;
-    bottom: 20px;
+    top: 20px;
     right: 20px;
     background: white;
-    padding: 15px 25px;
+    padding: 20px 30px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     z-index: 9999;
     animation: slideIn 0.3s ease-out;
+    border: 2px solid #198754;
+    opacity: 1 !important; /* Force opacity */
 }
 
 .timer-content {
     text-align: center;
 }
 
+.timer-content h3 {
+    color: #198754;
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+
 .timer-countdown {
-    font-size: 2em;
+    font-size: 2.5em;
     font-weight: bold;
     color: #198754;
     margin: 10px 0;
+    font-family: monospace;
 }
 
 @keyframes slideIn {
@@ -190,4 +199,16 @@ body {
 
 .queued-item span {
     flex: 1;
+} 
+
+/* Ensure timer stays visible when display:block is set */
+.timer-container[style*="display: block"] {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Add transition for smooth appearance */
+.timer-container:not(.hiding) {
+    transition: opacity 0.3s ease-in-out;
 } 
