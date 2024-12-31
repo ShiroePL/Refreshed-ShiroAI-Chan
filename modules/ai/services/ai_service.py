@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from groq import Groq
 from modules.ai.services.prompt_builder import PromptBuilder
 from src.utils.error_handler import handle_error
-
+import httpx
+from src.config.service_config import DB_MODULE_URL
 logger = logging.getLogger(__name__)
 
 class GroqService:
@@ -68,6 +69,9 @@ class GroqService:
             answer = completion.choices[0].message.content
             self._update_token_count(completion.usage.total_tokens)
             
+            # Save the exchange to DB
+            await self._save_chat_exchange(user_message, answer)
+            
             return answer
             
         except Exception as e:
@@ -108,3 +112,30 @@ class GroqService:
             "last_reset": self.last_reset.isoformat(),
             "next_reset": (self.last_reset + self.token_reset_interval).isoformat()
         }
+
+    async def _save_chat_exchange(self, user_message: str, ai_response: str):
+        """Save the conversation exchange to the database"""
+        try:
+            async with httpx.AsyncClient() as client:
+                # Save user message
+                await client.post(
+                    f"{DB_MODULE_URL}/chat/message",
+                    json={
+                        "user_id": "default",  # You might want to make this configurable
+                        "content": user_message,
+                        "role": "user"
+                    }
+                )
+                
+                # Save AI response
+                await client.post(
+                    f"{DB_MODULE_URL}/chat/message",
+                    json={
+                        "user_id": "default",
+                        "content": ai_response,
+                        "role": "assistant"
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to save chat exchange: {e}")

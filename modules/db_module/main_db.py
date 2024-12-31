@@ -1,30 +1,17 @@
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 from modules.db_module.services.vector_store import VectorStoreService
-from src.config import api_keys
+from modules.db_module.database import db_engine
 from src.utils.logging_config import setup_logger
 import platform
 import uvicorn
-from modules.db_module.routers import vector_store
 
 logger = setup_logger("db_module_main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        # Initialize DB connections
-        app.state.db_engine = create_async_engine(
-            f"mysql+aiomysql://{api_keys.user_name}:{api_keys.db_password}@{api_keys.host_name}/{api_keys.db_name}",
-            pool_pre_ping=True,
-            pool_size=20,
-            max_overflow=10
-        )
-        
-        app.state.async_session = sessionmaker(
-            app.state.db_engine, class_=AsyncSession, expire_on_commit=False
-        )
+        logger.info("[STARTUP] Initializing DB module services...")
         
         # Initialize Vector Store Service
         app.state.vector_store = VectorStoreService()
@@ -33,16 +20,24 @@ async def lifespan(app: FastAPI):
         yield
         
         # Cleanup
-        await app.state.db_engine.dispose()
+        await db_engine.dispose()
+        logger.info("[SHUTDOWN] Database connections closed")
         
     except Exception as e:
-        logger.error(f"Error initializing DB module: {e}")
+        logger.error(f"[ERROR] Failed to initialize DB module: {e}")
         raise
 
 app = FastAPI(lifespan=lifespan)
 
+# Import routers here to avoid circular imports
+from modules.db_module.routers.chat_history import router as chat_router
+from modules.db_module.routers.vector_store import router as vector_router
+
 # Include routers
-app.include_router(vector_store.router, prefix="/vector", tags=["vector"])
+app.include_router(vector_router, prefix="/vector", tags=["vector"])
+app.include_router(chat_router, tags=["chat"])
+
+logger.info(f"[INIT] Registered routes: {[route.path for route in app.routes]}")
 
 if __name__ == "__main__":
     logger.info("[STARTUP] Starting DB service...")

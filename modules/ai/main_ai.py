@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
+from typing import Dict, List
 from dotenv import load_dotenv
 import logging
 import httpx
@@ -42,9 +42,29 @@ async def lifespan(app: FastAPI):
         app.state.tts_service = TTSService()
         logger.info("[INIT] TTS service initialized")
         
-        # Initialize other required services (can be None for now)
-        app.state.history_service = None  # TODO: Implement history service
-        app.state.context_manager = None  # TODO: Implement context manager
+        # Initialize history service
+        class HistoryService:
+            async def get_chat_history(self, limit: int = 30) -> List[Dict]:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"{DB_MODULE_URL}/chat/exchange",
+                        params={"limit": limit}
+                    )
+                    if response.status_code == 200:
+                        return response.json()
+                    logger.error(f"Failed to fetch chat history: {response.status_code}")
+                    return []
+        
+        app.state.history_service = HistoryService()
+        logger.info("[INIT] History service initialized")
+        
+        # Initialize context manager (if needed)
+        class ContextManager:
+            async def get_current_context(self) -> str:
+                return "No specific context"  # Or implement context logic
+        
+        app.state.context_manager = ContextManager()
+        logger.info("[INIT] Context manager initialized")
         
         logger.info("[SUCCESS] All services initialized successfully")
         yield

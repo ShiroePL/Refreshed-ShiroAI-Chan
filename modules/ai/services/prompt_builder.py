@@ -3,7 +3,7 @@ from datetime import datetime
 import aiohttp
 import logging
 from pathlib import Path
-
+from src.config.service_config import DB_MODULE_URL
 # Setup logging
 logger = logging.getLogger("prompt_builder")
 logger.setLevel(logging.INFO)
@@ -118,16 +118,31 @@ class PromptBuilder:
     async def _get_chat_history(self, history_service: object, max_messages: int = 30) -> str:
         """Fetches recent chat history from DB service"""
         try:
+            logger.info(f"[PROMPT] Requesting chat history from {DB_MODULE_URL}/chat/exchange")
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"http://db-service:8000/chat/history/{user_id}", # this need to be changed to the urls in separete file
+                    f"{DB_MODULE_URL}/chat/exchange",
                     params={"limit": max_messages}
                 ) as response:
+                    logger.info(f"[PROMPT] Got response with status: {response.status}")
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"[PROMPT] Error response: {error_text}")
+                        return f"Error fetching chat history: {response.status}"
+                    
                     messages = await response.json()
-                    return self._format_chat_history(messages)
+                    # Add detailed logging of received messages
+                    for msg in messages:
+                        logger.info(
+                            f"[PROMPT] Message - Question: {msg.get('question', '')[:30]}... "
+                            f"Answer: {msg.get('answer', '')[:30]}..."
+                        )
+                    formatted = self._format_chat_history(messages)
+                    logger.info(f"[PROMPT] Formatted history preview: {formatted[:200]}...")
+                    return formatted
         except Exception as e:
-            logger.error(f"Error fetching chat history: {e}")
-            return "Error fetching chat history"
+            logger.error(f"[PROMPT] Error in _get_chat_history: {e}", exc_info=True)
+            return f"Error fetching chat history: {str(e)}"
     
     async def _get_current_context(self, context_manager: object) -> str:
         """
@@ -153,9 +168,11 @@ class PromptBuilder:
     
     def _format_chat_history(self, messages: List[Dict]) -> str:
         """
-        Formats chat history into a string
+        Formats chat history messages into a readable string.
         """
         formatted = []
         for msg in messages:
-            formatted.append(f"{msg.get('role', 'unknown')}: {msg.get('content', '')}")
+            role = msg.get('role', 'unknown').capitalize()
+            content = msg.get('content', '')
+            formatted.append(f"{role}: {content}")
         return "\n".join(formatted) 
