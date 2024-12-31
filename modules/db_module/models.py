@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
+from sqlalchemy import func
 
 Base = declarative_base()
 
@@ -20,3 +21,12 @@ class ApiUsage(Base):
     completion_tokens = Column(Integer)
     total_tokens = Column(Integer)
     added_time = Column(DateTime, default=datetime.utcnow) 
+
+class ContextChoice(Base):
+    __tablename__ = 'context_choices'
+    
+    id = Column(Integer, primary_key=True)
+    context_text = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now()) 

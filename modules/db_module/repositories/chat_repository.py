@@ -3,7 +3,7 @@ from sqlalchemy import func, select, desc
 from sqlalchemy.future import select
 from typing import List, Dict, Optional
 import logging
-from ..models import ChatMessage, ApiUsage
+from modules.db_module.models import ChatMessage, ApiUsage
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class ChatRepository:
         """Get recent chat exchanges"""
         try:
             query = select(ChatMessage).order_by(
-                desc(ChatMessage.added_time)  # Get newest first
+                desc(ChatMessage.added_time)
             ).limit(limit)
             
             result = await self.session.execute(query)

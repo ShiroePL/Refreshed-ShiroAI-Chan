@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from colorama import init, Fore, Style
+from colorama import Back, init, Fore, Style
 import sys
 
 # Initialize colorama
@@ -30,6 +30,14 @@ class ColoredFormatter(logging.Formatter):
         'ERROR': Fore.RED + Style.BRIGHT,
         'SHUTDOWN': Fore.RED,
         'HTTP': Fore.BLUE,
+        
+        # Added missing labels
+        'TRANSCRIPT': Fore.MAGENTA + Style.BRIGHT + Back.CYAN,  # Rainbow-like effect for high visibility of new messages
+        'POST': Fore.BLUE + Style.BRIGHT,        # HTTP POST requests
+        'GET': Fore.BLUE,                        # HTTP GET requests
+        'SERVICE': Fore.YELLOW + Style.BRIGHT,   # Service-related logs
+        'PROMPT': Fore.MAGENTA,   # AI prompt-related logs
+        'SAVE': Fore.YELLOW,      # Save-related logs
     }
 
     def format(self, record):

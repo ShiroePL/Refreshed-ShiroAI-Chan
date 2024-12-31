@@ -6,7 +6,9 @@ from modules.ai.services.prompt_builder import PromptBuilder
 from src.utils.error_handler import handle_error
 import httpx
 from src.config.service_config import DB_MODULE_URL
-logger = logging.getLogger(__name__)
+from src.utils.logging_config import setup_logger
+
+logger = setup_logger("ai_service")
 
 class GroqService:
     def __init__(self, api_keys: Union[Dict, List]):
@@ -63,6 +65,10 @@ class GroqService:
                 {"role": "user", "content": user_message},
             ]
 
+            # Log start time
+            start_time = datetime.now()
+            logger.info(f"[GROQ] Starting API call at {start_time.strftime('%H:%M:%S.%f')[:-3]}")
+
             completion = self.client.chat.completions.create(
                 model="llama-3.1-70b-versatile",
                 messages=messages,
@@ -71,6 +77,12 @@ class GroqService:
                 top_p=0.9,
                 stop=None
             )
+
+            # Log end time and calculate duration
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(f"[GROQ] API call completed at {end_time.strftime('%H:%M:%S.%f')[:-3]}")
+            logger.info(f"[GROQ] Total API call duration: {duration:.3f} seconds")
             
             # Reset error count on successful request
             self.error_count = 0
@@ -126,7 +138,7 @@ class GroqService:
     async def _save_chat_exchange(self, user_message: str, ai_response: str):
         """Save the conversation exchange to the database"""
         try:
-            logger.info(f"[SAVE] Attempting to save exchange - Q: {user_message[:50]}... A: {ai_response[:50]}...")
+            logger.info(f"[SAVE] Queuing exchange save - Q: {user_message[:50]}... A: {ai_response[:50]}...")
             async with httpx.AsyncClient() as client:
                 data = {
                     "question": user_message,
@@ -135,17 +147,17 @@ class GroqService:
                 logger.debug(f"[SAVE] Sending data: {data}")
                 response = await client.post(
                     f"{DB_MODULE_URL}/chat/exchange",
-                    params=data  # Changed from json to params since we're using Body parameters
+                    params=data
                 )
                 if response.status_code == 200:
-                    logger.info("[SAVE] Successfully saved chat exchange")
+                    logger.info("[SAVE] Successfully queued chat exchange")
                 else:
                     error_text = await response.text()
-                    logger.error(f"[SAVE] Failed to save chat exchange: {response.status_code}")
+                    logger.error(f"[SAVE] Failed to queue chat exchange: {response.status_code}")
                     logger.error(f"[SAVE] Error details: {error_text}")
                 
         except Exception as e:
-            logger.error(f"[SAVE] Failed to save chat exchange: {e}", exc_info=True)
+            logger.error(f"[SAVE] Failed to queue chat exchange: {e}", exc_info=True)
 
     def _handle_api_error(self, error):
         """Handle API errors with exponential backoff"""

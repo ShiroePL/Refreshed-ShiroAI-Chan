@@ -1,10 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from modules.db_module.services.vector_store import VectorStoreService
 from modules.db_module.database import db_engine
 from src.utils.logging_config import setup_logger
 import platform
 import uvicorn
+from .dependencies import save_context, get_active_context
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 logger = setup_logger("db_module_main")
 
@@ -38,6 +41,35 @@ app.include_router(vector_router, prefix="/vector", tags=["vector"])
 app.include_router(chat_router, tags=["chat"])
 
 logger.info(f"[INIT] Registered routes: {[route.path for route in app.routes]}")
+
+# Add these new endpoints
+class ContextUpdate(BaseModel):
+    context_text: str
+
+@app.post("/context/update")
+async def update_context(context: ContextUpdate):
+    try:
+        await save_context(context.context_text)
+        return {"status": "success", "message": "Context updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/context/current")
+async def get_current_context():
+    try:
+        context = await get_active_context()
+        return {"context": context or "No context set"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add this after creating the FastAPI app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5000", "http://127.0.0.1:5000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     logger.info("[STARTUP] Starting DB service...")

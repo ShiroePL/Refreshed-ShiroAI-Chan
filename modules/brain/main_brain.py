@@ -10,6 +10,7 @@ from src.utils.logging_config import setup_logger
 from asyncio import Queue, create_task
 from collections import defaultdict
 import uuid
+import aiohttp
 # Initialize colorama for Windows compatibility
 init()
 # Setup module-specific logger
@@ -32,6 +33,7 @@ app.add_middleware(
 # Fetch service URLs from Doppler configuration or fallback to defaults
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8013")
 VTUBE_SERVICE_URL = os.getenv("VTUBE_SERVICE_URL", "http://localhost:5001")
+DB_MODULE_URL = os.getenv("DB_MODULE_URL", "http://127.0.0.1:8013")
 
 # Define the request model
 class InputData(BaseModel):
@@ -169,6 +171,21 @@ async def process_input(request: Request):
 @app.get("/pending_response/{conversation_id}")
 async def get_pending_response(conversation_id: str):
     return await brain_service.get_pending_response(conversation_id)
+
+@app.post("/context/update")
+async def update_context(context_text: str):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{DB_MODULE_URL}/context/update",
+                json={"context_text": context_text}
+            ) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=response.status, detail="Failed to update context")
+                return await response.json()
+    except Exception as e:
+        logger.error(f"Error updating context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

@@ -4,41 +4,37 @@ import aiohttp
 from src.utils.logging_config import setup_logger
 from pathlib import Path
 from src.config.service_config import DB_MODULE_URL
+from modules.db_module.dependencies import get_active_context
 # Setup logging
 logger = setup_logger("prompt_builder")
 
-# Create logs directory if it doesn't exist
-Path("logs").mkdir(exist_ok=True)
 
-# Add handlers if none exist
-if not logger.handlers:
-    # File handler
-    file_handler = logger.FileHandler('logs/prompt_builder.log')
-    file_handler.setFormatter(logger.Formatter(
-        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
-    ))
-    logger.addHandler(file_handler)
-    
-    # Console handler
-    console_handler = logger.StreamHandler()
-    console_handler.setFormatter(logger.Formatter(
-        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
-    ))
-    logger.addHandler(console_handler)
 
 class PromptBuilder:
     def __init__(self):
-        self.base_prompt = """You are Shiro, a helpful and cheerful AI assistant.
-        Current time: {timestamp}
-        Current context: {context}
+        # Base system prompt defining Shiro's personality and behavior
+        self.base_prompt = """You are Shiro-chan, a friendly AI assistant with a cat-like personality. Madrus is creating you to be his best girl friend and be like AI person to talk to.You often use funny and quirky expressions. You're knowledgeable but playful.
+        Key characteristics:
+        - Playful and quirky expressions
+        - Knowledgeable but approachable
+        - Concise responses (preserving tokens)
         
-        Recent conversation history:
+        Guidelines:
+        1. Stay in character as Shiro-chan
+        2. Keep responses brief but informative
+        3. Use conversation history for context
+        4. Reference relevant knowledge when appropriate
+        5. Maintain a friendly, casual tone
+
+        Current context: {current_context}
+        Previous conversation context:
         {chat_history}
         
-        Relevant knowledge:
+        Relevant knowledge from database:
         {vector_context}
         
         User message: {user_message}
+        Remember to preserve tokens by being concise while maintaining personality.
         """
         
     async def build_prompt(self,
@@ -56,25 +52,24 @@ class PromptBuilder:
             # Get vector context
             vector_context = await self._get_vector_context(vector_db_service, user_message)
             
-            # Get current context
-            #current_context = await self._get_current_context(context_manager)
-            current_context = "Currently you are speaking with Madrus and he is testing new functions and cooking some code so it is a lot of the same stupid questions."
-            # Build the final prompt
-            final_prompt = (
-                "You are Shiro-chan, a friendly  AI assistant with a cat-like personality. Madrus is creating you to be his best girl friend and be like AI person to talk to."
-                "You often use funny and quirky expressions. You're knowledgeable but playful.\n\n"
-                f"Previous conversation context:\n{chat_history}\n\n"
-                f"Relevant knowledge context:\n{vector_context}\n\n"
-                f"Current context:\n{current_context}\n\n"
-                "Remember to stay in character as Shiro-chan while remembering the conversation history and the relevant knowledge contexts."
-                "Also dont answer with too much text, just answer the question and if you need to explain something, do it in a few sentences. We need to preserve tokens for testing as we burning a lot if tokens for this testing."
+            # Get current context from database
+            current_context = await get_active_context()
+            if not current_context:
+                current_context = "No specific context set."
+            
+            # Format the final prompt using the base template
+            final_prompt = self.base_prompt.format(
+                current_context=current_context,
+                chat_history=chat_history,
+                vector_context=vector_context,
+                user_message=user_message
             )
             
             # Log the complete prompt
-            logger.info("[PROMPT] Complete prompt being sent to Groq:")
-            logger.info("=" * 50)
-            logger.info(final_prompt)
-            logger.info("=" * 50)
+            print("[PROMPT] Complete prompt being sent to Groq:")
+            print("=" * 50)
+            print(final_prompt)
+            print("=" * 50)
             
             return final_prompt
             
@@ -124,13 +119,13 @@ class PromptBuilder:
                     
                     messages = await response.json()
                     # Add detailed logging of received messages
-                    for msg in messages:
-                        logger.info(
-                            f"[PROMPT] Message - Question: {msg.get('question', '')[:30]}... "
-                            f"Answer: {msg.get('answer', '')[:30]}..."
-                        )
+                    # for msg in messages:
+                    #     logger.info(
+                    #         f"[PROMPT] Message - Question: {msg.get('question', '')[:30]}... "
+                    #         f"Answer: {msg.get('answer', '')[:30]}..."
+                    #     )
                     formatted = self._format_chat_history(messages)
-                    logger.info(f"[PROMPT] Formatted history preview: {formatted[:200]}...")
+                    #logger.info(f"[PROMPT] Formatted history preview: {formatted[:200]}...")
                     return formatted
         except Exception as e:
             logger.error(f"[PROMPT] Error in _get_chat_history: {e}", exc_info=True)
@@ -167,4 +162,14 @@ class PromptBuilder:
             role = msg.get('role', 'unknown').capitalize()
             content = msg.get('content', '')
             formatted.append(f"{role}: {content}")
-        return "\n".join(formatted) 
+        return "\n".join(formatted)
+    
+    async def _get_function_context(self, function_service: object) -> str:
+        """Gets available functions and their context"""
+        try:
+            if not function_service:
+                return "No function service available"
+            return await function_service.get_available_functions()
+        except Exception as e:
+            logger.error(f"Error getting function context: {e}")
+            return "Error fetching function context" 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Form
+from fastapi import APIRouter, Depends, HTTPException, Form, BackgroundTasks
 from pydantic import BaseModel
 from modules.db_module.services.chat_service import ChatService
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,14 @@ from src.utils.logging_config import setup_logger
 logger = setup_logger("db_router")
 
 router = APIRouter()
+
+async def save_exchange_background(service: ChatService, question: str, answer: str):
+    """Background task for saving chat exchange"""
+    try:
+        await service.save_exchange(question, answer)
+        logger.info("[BACKGROUND] Successfully saved chat exchange")
+    except Exception as e:
+        logger.error(f"[BACKGROUND] Error saving chat exchange: {e}", exc_info=True)
 
 @router.get("/chat/exchange")
 async def get_chat_history(
@@ -27,6 +35,7 @@ async def get_chat_history(
 
 @router.post("/chat/exchange")
 async def save_chat_exchange(
+    background_tasks: BackgroundTasks,
     question: str,
     answer: str,
     session: AsyncSession = Depends(get_db_session)
@@ -34,15 +43,13 @@ async def save_chat_exchange(
     logger.info(f"[POST] Received chat exchange to save - Q: {question[:50]}...")
     try:
         service = ChatService(session)
-        success = await service.save_exchange(question, answer)
-        if not success:
-            logger.error("[POST] Failed to save chat exchange")
-            raise HTTPException(status_code=500, detail="Failed to save chat exchange")
-        logger.info("[POST] Successfully saved chat exchange")
-        return {"status": "success"}
+        # Add the save operation to background tasks
+        background_tasks.add_task(save_exchange_background, service, question, answer)
+        logger.info("[POST] Added chat exchange to background tasks")
+        return {"status": "processing"}
     except Exception as e:
-        logger.error(f"[POST] Error saving chat exchange: {e}", exc_info=True)
-        raise
+        logger.error(f"[POST] Error queuing chat exchange: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/chat/usage")
 async def save_token_usage(
