@@ -5,7 +5,7 @@ from datetime import datetime
 Base = declarative_base()
 
 class ChatMessage(Base):
-    __tablename__ = 'chatgpt_api'  # Using the existing table name from connect_to_phpmyadmin.py
+    __tablename__ = 'private_conversations'  # Changed from 'chatgpt_api'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     question = Column(Text)  # Original 'Question' column

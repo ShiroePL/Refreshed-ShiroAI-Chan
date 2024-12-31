@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Form
+from pydantic import BaseModel
 from modules.db_module.services.chat_service import ChatService
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
@@ -30,7 +31,7 @@ async def save_chat_exchange(
     answer: str,
     session: AsyncSession = Depends(get_db_session)
 ) -> Dict:
-    logger.info("[POST] Received chat exchange to save")
+    logger.info(f"[POST] Received chat exchange to save - Q: {question[:50]}...")
     try:
         service = ChatService(session)
         success = await service.save_exchange(question, answer)
@@ -40,7 +41,7 @@ async def save_chat_exchange(
         logger.info("[POST] Successfully saved chat exchange")
         return {"status": "success"}
     except Exception as e:
-        logger.error(f"[POST] Error saving chat exchange: {e}")
+        logger.error(f"[POST] Error saving chat exchange: {e}", exc_info=True)
         raise
 
 @router.post("/chat/usage")

@@ -1,12 +1,11 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 import aiohttp
-import logging
+from src.utils.logging_config import setup_logger
 from pathlib import Path
 from src.config.service_config import DB_MODULE_URL
 # Setup logging
-logger = logging.getLogger("prompt_builder")
-logger.setLevel(logging.INFO)
+logger = setup_logger("prompt_builder")
 
 # Create logs directory if it doesn't exist
 Path("logs").mkdir(exist_ok=True)
@@ -14,15 +13,15 @@ Path("logs").mkdir(exist_ok=True)
 # Add handlers if none exist
 if not logger.handlers:
     # File handler
-    file_handler = logging.FileHandler('logs/prompt_builder.log')
-    file_handler.setFormatter(logging.Formatter(
+    file_handler = logger.FileHandler('logs/prompt_builder.log')
+    file_handler.setFormatter(logger.Formatter(
         '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
     ))
     logger.addHandler(file_handler)
     
     # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter(
+    console_handler = logger.StreamHandler()
+    console_handler.setFormatter(logger.Formatter(
         '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
     ))
     logger.addHandler(console_handler)
@@ -44,51 +43,44 @@ class PromptBuilder:
         
     async def build_prompt(self,
                           user_message: str,
-                          vector_db_service: Optional[object] = None,
-                          chat_history_service: Optional[object] = None,
-                          context_manager: Optional[object] = None,
-                          max_history: int = 30,
-                          max_vector_results: int = 5) -> str:
+                          vector_db_service=None,
+                          chat_history_service=None,
+                          context_manager=None) -> str:
         """
-        Builds a complete prompt by gathering all dynamic components
+        Builds a dynamic prompt incorporating various context sources
         """
         try:
-            # Get current timestamp
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Get chat history
+            chat_history = await self._get_chat_history(chat_history_service)
             
-            # Fetch relevant context from vector DB
-            vector_context = await self._get_vector_context(
-                vector_db_service,
-                user_message,
-                max_results=max_vector_results
-            ) if vector_db_service else "No vector context available"
-            
-            # Fetch chat history
-            chat_history = await self._get_chat_history(
-                chat_history_service,
-                max_messages=max_history
-            ) if chat_history_service else "No chat history available"
+            # Get vector context
+            vector_context = await self._get_vector_context(vector_db_service, user_message)
             
             # Get current context
-            current_context = await self._get_current_context(
-                context_manager
-            ) if context_manager else "No specific context"
-            
-            # Construct final prompt
-            final_prompt = self.base_prompt.format(
-                timestamp=timestamp,
-                context=current_context,
-                chat_history=chat_history,
-                vector_context=vector_context,
-                user_message=user_message
+            #current_context = await self._get_current_context(context_manager)
+            current_context = "Currently you are speaking with Madrus and he is testing new functions and cooking some code so it is a lot of the same stupid questions."
+            # Build the final prompt
+            final_prompt = (
+                "You are Shiro-chan, a friendly  AI assistant with a cat-like personality. Madrus is creating you to be his best girl friend and be like AI person to talk to."
+                "You often use funny and quirky expressions. You're knowledgeable but playful.\n\n"
+                f"Previous conversation context:\n{chat_history}\n\n"
+                f"Relevant knowledge context:\n{vector_context}\n\n"
+                f"Current context:\n{current_context}\n\n"
+                "Remember to stay in character as Shiro-chan while remembering the conversation history and the relevant knowledge contexts."
+                "Also dont answer with too much text, just answer the question and if you need to explain something, do it in a few sentences. We need to preserve tokens for testing as we burning a lot if tokens for this testing."
             )
             
-            logger.debug(f"Built prompt with length: {len(final_prompt)}")
+            # Log the complete prompt
+            logger.info("[PROMPT] Complete prompt being sent to Groq:")
+            logger.info("=" * 50)
+            logger.info(final_prompt)
+            logger.info("=" * 50)
+            
             return final_prompt
             
         except Exception as e:
             logger.error(f"Error building prompt: {e}")
-            raise
+            return "Error building prompt"
     
     async def _get_vector_context(self,
                                 vector_service: object,

@@ -187,7 +187,6 @@ export class SocketHandler {
             source.onended = () => {
                 this.isPlaying = false;
                 this.currentAudio = null;
-                this.currentResponse = null;
                 this.socket.emit('audio_finished');
                 // Process next audio in queue if any
                 this.processAudioQueue();
@@ -196,7 +195,6 @@ export class SocketHandler {
             console.error('Error playing audio:', error);
             this.isPlaying = false;
             this.currentAudio = null;
-            this.currentResponse = null;
             // Try to process next audio in queue even if current one failed
             this.processAudioQueue();
         }
@@ -212,9 +210,8 @@ export class SocketHandler {
             } finally {
                 this.currentAudio = null;
                 this.isPlaying = false;
-                this.currentResponse = null;
                 
-                // If queue is empty, clear the display
+                // If queue is empty, keep the display but update it
                 if (this.audioQueue.length === 0) {
                     this.updateResponseDisplay();
                 }
@@ -300,11 +297,6 @@ export class SocketHandler {
     // Add method to process the audio queue
     async processAudioQueue() {
         if (this.isPlaying || this.audioQueue.length === 0) {
-            // If queue is empty and nothing is playing, clear the display
-            if (!this.isPlaying && this.audioQueue.length === 0) {
-                this.currentResponse = null;
-                this.updateResponseDisplay();
-            }
             return;
         }
         

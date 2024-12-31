@@ -74,7 +74,7 @@ def setup_logger(module_name: str) -> logging.Logger:
     console_handler.setLevel(logging.INFO)
     
     # File handler without colors
-    file_handler = logging.FileHandler(f'logs/{module_name}.log')
+    file_handler = logging.FileHandler(f'logs/{module_name}.log', encoding='utf-8')
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
     ))

@@ -12,6 +12,7 @@ class ChatService:
     
     async def save_exchange(self, question: str, answer: str) -> bool:
         """Save a Q&A exchange to the database"""
+        logger.debug(f"[SERVICE] Saving exchange - Q: {question[:50]}...")
         return await self.repository.add_chat_exchange(question, answer)
     
     async def get_chat_history(self, limit: int = 30) -> List[Dict]:

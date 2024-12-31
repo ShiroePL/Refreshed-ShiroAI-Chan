@@ -15,17 +15,18 @@ class ChatRepository:
     async def add_chat_exchange(self, question: str, answer: str) -> bool:
         """Add a pair of question and answer to the chat table"""
         try:
+            logger.info(f"[REPO] Adding new exchange - Q: {question[:50]}... A: {answer[:50]}...")
             message = ChatMessage(
                 question=question,
                 answer=answer
             )
             self.session.add(message)
             await self.session.commit()
-            logger.info("Added chat exchange to database")
+            logger.info("[REPO] Successfully added chat exchange to database")
             return True
             
         except Exception as e:
-            logger.error(f"Error saving chat exchange: {e}")
+            logger.error(f"[REPO] Error saving chat exchange: {e}")
             await self.session.rollback()
             return False
     
@@ -33,7 +34,7 @@ class ChatRepository:
         """Get recent chat exchanges"""
         try:
             query = select(ChatMessage).order_by(
-                desc(ChatMessage.added_time)
+                desc(ChatMessage.added_time)  # Get newest first
             ).limit(limit)
             
             result = await self.session.execute(query)
@@ -48,14 +49,23 @@ class ChatRepository:
                     f"Time: {ex.added_time}"
                 )
             
-            return [
-                {
-                    "question": exchange.question,
-                    "answer": exchange.answer,
-                    "timestamp": exchange.added_time.isoformat()
-                }
-                for exchange in exchanges
-            ]
+            # Create paired messages in chronological order (reverse the list since we got newest first)
+            formatted_exchanges = []
+            for exchange in reversed(exchanges):  # Reverse to get chronological order
+                formatted_exchanges.extend([
+                    {
+                        "role": "Madrus",  # Changed from "user"
+                        "content": exchange.question,
+                        "timestamp": exchange.added_time.isoformat()
+                    },
+                    {
+                        "role": "Shiro",   # Changed from "assistant"
+                        "content": exchange.answer,
+                        "timestamp": exchange.added_time.isoformat()
+                    }
+                ])
+            
+            return formatted_exchanges
             
         except Exception as e:
             logger.error(f"Error fetching chat history: {e}")

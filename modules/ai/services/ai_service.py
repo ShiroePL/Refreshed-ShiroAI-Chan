@@ -30,6 +30,9 @@ class GroqService:
         self.last_reset = datetime.now()
         self.token_limit = 6000  # per minute (100k for a day)
         self.token_reset_interval = timedelta(hours=24)
+        self.error_count = 0  # Add error counter
+        self.last_error_time = None
+        self.backoff_time = 1  # Start with 1 second backoff
         logger.info("Groq service initialized successfully")
         
     async def send_to_groq(self, 
@@ -43,6 +46,9 @@ class GroqService:
             
             if self._is_rate_limited():
                 return "I'm sorry, but I've reached my token limit for now. Please try again later."
+
+            if self._should_backoff():
+                return "I'm experiencing some technical difficulties. Please try again in a few minutes."
             
             # Build the dynamic prompt
             prompt = await self.prompt_builder.build_prompt(
@@ -58,13 +64,17 @@ class GroqService:
             ]
 
             completion = self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-70b-versatile",
                 messages=messages,
                 temperature=0.7,
                 max_tokens=1000,
                 top_p=0.9,
                 stop=None
             )
+            
+            # Reset error count on successful request
+            self.error_count = 0
+            self.backoff_time = 1
             
             answer = completion.choices[0].message.content
             self._update_token_count(completion.usage.total_tokens)
@@ -75,8 +85,8 @@ class GroqService:
             return answer
             
         except Exception as e:
-            handle_error(logger, e, "Groq API request")
-            return "I apologize, but I encountered an error processing your request."
+            self._handle_api_error(e)
+            return "I apologize, but I encountered a temporary issue. Please try again in a moment."
 
     def _is_rate_limited(self) -> bool:
         """Check if we've exceeded our token limit"""
@@ -116,26 +126,40 @@ class GroqService:
     async def _save_chat_exchange(self, user_message: str, ai_response: str):
         """Save the conversation exchange to the database"""
         try:
+            logger.info(f"[SAVE] Attempting to save exchange - Q: {user_message[:50]}... A: {ai_response[:50]}...")
             async with httpx.AsyncClient() as client:
-                # Save user message
-                await client.post(
-                    f"{DB_MODULE_URL}/chat/message",
-                    json={
-                        "user_id": "default",  # You might want to make this configurable
-                        "content": user_message,
-                        "role": "user"
-                    }
+                data = {
+                    "question": user_message,
+                    "answer": ai_response
+                }
+                logger.debug(f"[SAVE] Sending data: {data}")
+                response = await client.post(
+                    f"{DB_MODULE_URL}/chat/exchange",
+                    params=data  # Changed from json to params since we're using Body parameters
                 )
-                
-                # Save AI response
-                await client.post(
-                    f"{DB_MODULE_URL}/chat/message",
-                    json={
-                        "user_id": "default",
-                        "content": ai_response,
-                        "role": "assistant"
-                    }
-                )
+                if response.status_code == 200:
+                    logger.info("[SAVE] Successfully saved chat exchange")
+                else:
+                    error_text = await response.text()
+                    logger.error(f"[SAVE] Failed to save chat exchange: {response.status_code}")
+                    logger.error(f"[SAVE] Error details: {error_text}")
                 
         except Exception as e:
-            logger.error(f"Failed to save chat exchange: {e}")
+            logger.error(f"[SAVE] Failed to save chat exchange: {e}", exc_info=True)
+
+    def _handle_api_error(self, error):
+        """Handle API errors with exponential backoff"""
+        self.error_count += 1
+        self.last_error_time = datetime.now()
+        self.backoff_time = min(self.backoff_time * 2, 300)  # Max 5 minutes
+        
+        logger.error(f"[GROQ] API Error (Count: {self.error_count}): {str(error)}")
+        logger.info(f"[GROQ] Backing off for {self.backoff_time} seconds")
+
+    def _should_backoff(self) -> bool:
+        """Check if we should back off based on recent errors"""
+        if not self.last_error_time:
+            return False
+            
+        time_since_error = (datetime.now() - self.last_error_time).total_seconds()
+        return time_since_error < self.backoff_time
