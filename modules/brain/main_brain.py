@@ -11,6 +11,7 @@ from asyncio import Queue, create_task
 from collections import defaultdict
 import uuid
 import aiohttp
+from datetime import datetime
 # Initialize colorama for Windows compatibility
 init()
 # Setup module-specific logger
@@ -124,6 +125,10 @@ class BrainService:
     
     async def process_long_running_task(self, data: dict, conversation_id: str):
         try:
+            # Log start time for entire process
+            start_time = datetime.now()
+            logger.info(f"[BRAIN] Starting request processing at {start_time.strftime('%H:%M:%S.%f')[:-3]}")
+            
             # Log the incoming data
             logger.info(f"[BRAIN] Received data: {data}")
             use_openai = data.get('use_openai', False)
@@ -132,8 +137,16 @@ class BrainService:
             
             # Use the global call_ai_service function
             result = await call_ai_service(data)
+            
             # Queue the response
             await self.response_queue.queue_response(conversation_id, result)
+            
+            # Calculate and log total processing time
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(f"[BRAIN] Request processing completed at {end_time.strftime('%H:%M:%S.%f')[:-3]}")
+            logger.info(f"[BRAIN] Total processing duration: {duration:.3f} seconds")
+            
         except Exception as e:
             logger.error(f"Error in long-running task: {e}")
             error_response = {
