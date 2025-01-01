@@ -63,13 +63,20 @@ async def call_ai_service(data: Dict) -> Dict:
     """Forward request to AI service with detailed logging."""
     try:
         async with httpx.AsyncClient() as client:
-            logger.info(f"Brain sending to AI service: {data}")
+            # Debug log the entire data payload
+            logger.info(f"[BRAIN] Sending to AI service: {data}")
+            use_openai = data.get('use_openai', False)
+            logger.info(f"[BRAIN] use_openai flag before AI call: {use_openai}")
+            
             response = await client.post(f"{AI_SERVICE_URL}/generate", json=data, timeout=15.0)
             response.raise_for_status()
             return response.json()
     except httpx.RequestError as e:
         logger.error(f"AI service request failed: {e}")
-        raise HTTPException(status_code=502, detail=f"AI service request failed: {e}")
+        raise HTTPException(status_code=503, detail="AI service unavailable")
+    except Exception as e:
+        logger.error(f"Error calling AI service: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def call_vtube_service(animation_data: Dict) -> Dict:
     """Asynchronously call VTube service for animation analysis"""
@@ -117,13 +124,18 @@ class BrainService:
     
     async def process_long_running_task(self, data: dict, conversation_id: str):
         try:
+            # Log the incoming data
+            logger.info(f"[BRAIN] Received data: {data}")
+            use_openai = data.get('use_openai', False)
+            logger.info(f"[BRAIN] use_openai flag value: {use_openai}")
+            logger.info(f"[BRAIN] Using {'OpenAI' if use_openai else 'Groq'} service")
+            
             # Use the global call_ai_service function
             result = await call_ai_service(data)
             # Queue the response
             await self.response_queue.queue_response(conversation_id, result)
         except Exception as e:
             logger.error(f"Error in long-running task: {e}")
-            # Queue error response
             error_response = {
                 "success": False,
                 "error": str(e),

@@ -29,11 +29,7 @@ class ChatService:
         logger.info(f"[SERVICE] Fetching chat history. Limit: {limit}")
         try:
             messages = await self.repository.get_recent_exchanges(limit)
-            # for msg in messages:
-            #     logger.info(
-            #         f"[SERVICE] Message - Question: {msg.get('question', '')[:30]}... "
-            #         f"Answer: {msg.get('answer', '')[:30]}..."
-            #     )
+            logger.info(f"[SERVICE] Retrieved {len(messages)} messages from history")
             return messages
         except Exception as e:
             logger.error(f"[SERVICE] Error fetching chat history: {e}")

@@ -14,6 +14,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from colorama import init
 from src.utils.logging_config import setup_logger
+from modules.ai.services.openai_service import OpenAIService
 
 # Initialize colorama
 init()
@@ -66,6 +67,10 @@ async def lifespan(app: FastAPI):
         app.state.context_manager = ContextManager()
         logger.info("[INIT] Context manager initialized")
         
+        # Initialize OpenAI service
+        app.state.openai_service = OpenAIService()
+        logger.info("[INIT] OpenAI service initialized")
+        
         logger.info("[SUCCESS] All services initialized successfully")
         yield
     except Exception as e:
@@ -85,13 +90,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async def process_request(transcript: str, groq_service: GroqService, tts_service: TTSService) -> Dict:
+async def process_request(transcript: str, groq_service: GroqService, tts_service: TTSService, use_openai: bool = False) -> Dict:
     """Process a single request through the AI pipeline"""
     try:
         logger.info(f"[RECEIVE] Processing request: {transcript[:30]}...")
         
-        # Get text response from Groq with optional context services
-        logger.info("[GROQ] Sending request to Groq API...")
+        # Get text response from selected AI service
+        logger.info(f"[AI] Using {'OpenAI' if use_openai else 'Groq'} service...")
         
         # Call DB module's vector service endpoint
         async with httpx.AsyncClient() as client:
@@ -101,13 +106,23 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
             )
             vector_results = vector_response.json() if vector_response.status_code == 200 else None
         
-        text_response = await groq_service.send_to_groq(
-            transcript,
-            vector_db_service=vector_results,  # Pass the results from DB module
-            chat_history_service=getattr(app.state, 'history_service', None),
-            context_manager=getattr(app.state, 'context_manager', None)
-        )
-        logger.info(f"[GROQ] Received response ({len(text_response)} chars): {text_response[:30]}...")
+        # Choose service based on use_openai flag
+        if use_openai:
+            text_response = await app.state.openai_service.send_to_openai(
+                transcript,
+                vector_db_service=vector_results,
+                chat_history_service=getattr(app.state, 'history_service', None),
+                context_manager=getattr(app.state, 'context_manager', None)
+            )
+        else:
+            text_response = await app.state.groq_service.send_to_groq(
+                transcript,
+                vector_db_service=vector_results,
+                chat_history_service=getattr(app.state, 'history_service', None),
+                context_manager=getattr(app.state, 'context_manager', None)
+            )
+            
+        logger.info(f"[AI] Received response ({len(text_response)} chars): {text_response[:30]}...")
         
         # Generate audio asynchronously
         logger.info("[TTS] Starting speech synthesis...")
@@ -136,15 +151,16 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
 async def generate(data: dict):
     try:
         transcript = data.get('transcript', '')
-
-
-
-        result = await process_request(transcript, app.state.groq_service, app.state.tts_service)
+        use_openai = data.get('use_openai', False)  # Get the flag from request
         
-        # Add debug logging
-        #logger.info(f"Audio data type: {type(result.get('audio'))}")
-        #logger.info(f"Audio data length: {len(result['audio']) if result.get('audio') else 0}")
-        #logger.info(f"Audio data starts with: {result['audio'][:50] if result.get('audio') else 'None'}")
+        logger.info(f"[AI] Using {'OpenAI' if use_openai else 'Groq'} service")
+
+        result = await process_request(
+            transcript, 
+            app.state.groq_service, 
+            app.state.tts_service,
+            use_openai=use_openai  # Pass the flag to process_request
+        )
         
         return result
         

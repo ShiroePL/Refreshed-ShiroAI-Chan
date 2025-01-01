@@ -33,7 +33,6 @@ class PromptBuilder:
         Relevant knowledge from database:
         {vector_context}
         
-        User message: {user_message}
         Remember to preserve tokens by being concise while maintaining personality.
         """
         

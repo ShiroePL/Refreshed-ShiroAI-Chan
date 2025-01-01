@@ -38,6 +38,8 @@ class ColoredFormatter(logging.Formatter):
         'SERVICE': Fore.YELLOW + Style.BRIGHT,   # Service-related logs
         'PROMPT': Fore.MAGENTA,   # AI prompt-related logs
         'SAVE': Fore.YELLOW,      # Save-related logs
+        'BACKOFF': Fore.YELLOW,  # Backoff-related logs
+        'OPENAI': Fore.BLUE,    # OpenAI-related logs
     }
 
     def format(self, record):

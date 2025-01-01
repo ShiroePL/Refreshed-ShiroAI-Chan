@@ -140,19 +140,48 @@ window.addEventListener('app-initialized', () => {
         const message = textInput.value.trim();
         
         if (message) {
-            // Update the transcript display
-            document.getElementById('final').textContent = message;
+            const useOpenAI = document.getElementById('use-openai-check').checked;
+            const skipVtube = document.getElementById('skip-vtube-check').checked;
             
-            // Send to backend using the same socket event as voice
-            window.socket.emit('transcript', { 
+            console.log('Sending text message with options:', {
+                useOpenAI,
+                skipVtube,
+                message
+            });
+
+            window.socket.emit('transcript', {
                 transcript: message,
-                skip_vtube: document.getElementById('skip-vtube-check').checked
+                skip_vtube: skipVtube,
+                use_openai: useOpenAI
             });
             
             // Clear the input
             textInput.value = '';
         }
     }
+
+    // Update the speech recognition handler too
+    window.speechHandler.onFinalTranscript = (transcript) => {
+        const useOpenAI = document.getElementById('use-openai-check').checked;
+        const skipVtube = document.getElementById('skip-vtube-check').checked;
+        
+        console.log('Sending transcript with options:', {
+            useOpenAI,
+            skipVtube,
+            transcript
+        });
+
+        window.socket.emit('transcript', {
+            transcript: transcript,
+            skip_vtube: skipVtube,
+            use_openai: useOpenAI
+        });
+    };
+
+    // Add change event listener to OpenAI checkbox for debugging
+    document.getElementById('use-openai-check').addEventListener('change', (e) => {
+        console.log('OpenAI checkbox changed:', e.target.checked);
+    });
 });
 
 // Cleanup on page unload
