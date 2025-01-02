@@ -1,13 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from modules.db_module.services.vector_store import VectorStoreService
-from modules.db_module.database import db_engine
+from modules.db_module.database import db_engine, async_session_maker
+from modules.db_module.services.chat_service import ChatService
 from src.utils.logging_config import setup_logger
 import platform
 import uvicorn
 from .dependencies import save_context, get_active_context
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from modules.db_module.services.cache_service import ChatHistoryCache
+from src.config.service_config import CHAT_HISTORY_PAIRS
 
 logger = setup_logger("db_module_main")
 
@@ -19,6 +22,15 @@ async def lifespan(app: FastAPI):
         # Initialize Vector Store Service
         app.state.vector_store = VectorStoreService()
         logger.info("[INIT] Vector store service initialized")
+        
+        # Initialize chat history cache
+        app.state.chat_cache = ChatHistoryCache()
+        # Load initial history
+        async with async_session_maker() as session:
+            chat_service = ChatService(session)
+            initial_history = await chat_service.get_chat_history(limit=CHAT_HISTORY_PAIRS)
+            app.state.chat_cache.update_cache(initial_history)
+        logger.info(f"[INIT] Chat history cache initialized with {CHAT_HISTORY_PAIRS} pairs")
         
         yield
         

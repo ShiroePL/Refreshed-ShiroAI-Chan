@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from colorama import init
 from src.utils.logging_config import setup_logger
 from modules.ai.services.openai_service import OpenAIService
+from src.config.service_config import CHAT_HISTORY_PAIRS
 
 # Initialize colorama
 init()
@@ -121,7 +122,7 @@ async def get_chat_history() -> List[Dict]:
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{DB_MODULE_URL}/chat/exchange",
-                params={"limit": 30}
+                params={"limit": CHAT_HISTORY_PAIRS}
             )
             duration = (datetime.now() - start_time).total_seconds()
             logger.info(f"[HISTORY] Fetch completed in {duration:.3f} seconds")

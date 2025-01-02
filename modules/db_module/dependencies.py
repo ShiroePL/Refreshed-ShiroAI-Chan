@@ -6,15 +6,19 @@ from modules.db_module.database import async_session_maker
 from src.utils.logging_config import setup_logger
 
 from typing import AsyncGenerator
+from datetime import datetime
 
 logger = setup_logger("db_dependencies")
 
 
 async def get_active_context() -> Optional[str]:
+    start_time = datetime.now()
     async with async_session_maker() as session:
         query = select(ContextChoice).where(ContextChoice.is_active == True)
         result = await session.execute(query)
         context = result.scalar_one_or_none()
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info(f"[CONTEXT] Retrieved active context in {duration:.3f} seconds")
         return context.context_text if context else None
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

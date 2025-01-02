@@ -2,6 +2,8 @@ from typing import List, Dict, Optional
 from modules.db_module.repositories.chat_repository import ChatRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.utils.logging_config import setup_logger
+from src.config.service_config import CHAT_HISTORY_PAIRS
+from datetime import datetime
 
 logger = setup_logger("db_service")
 
@@ -24,12 +26,14 @@ class ChatService:
             await self.session.close()
             return False
     
-    async def get_chat_history(self, limit: int = 30) -> List[Dict]:
+    async def get_chat_history(self, limit: int = CHAT_HISTORY_PAIRS) -> List[Dict]:
         """Get recent chat history"""
+        start_time = datetime.now()
         logger.info(f"[SERVICE] Fetching chat history. Limit: {limit}")
         try:
             messages = await self.repository.get_recent_exchanges(limit)
-            logger.info(f"[SERVICE] Retrieved {len(messages)} messages from history")
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.info(f"[SERVICE] Retrieved {len(messages)} messages from history in {duration:.3f} seconds")
             return messages
         except Exception as e:
             logger.error(f"[SERVICE] Error fetching chat history: {e}")

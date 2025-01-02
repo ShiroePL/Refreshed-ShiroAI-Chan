@@ -3,7 +3,7 @@ from datetime import datetime
 import aiohttp
 from src.utils.logging_config import setup_logger
 from pathlib import Path
-from src.config.service_config import DB_MODULE_URL
+from src.config.service_config import DB_MODULE_URL, CHAT_HISTORY_PAIRS
 from modules.db_module.dependencies import get_active_context
 # Setup logging
 logger = setup_logger("prompt_builder")
@@ -101,14 +101,14 @@ class PromptBuilder:
             logger.error(f"Error fetching vector context: {e}")
             return "Error fetching relevant context"
     
-    async def _get_chat_history(self, history_service: object, max_messages: int = 30) -> str:
+    async def _get_chat_history(self, history_service: object, max_messages: int = None) -> str:
         """Fetches recent chat history from DB service"""
         try:
             logger.info(f"[PROMPT] Requesting chat history from {DB_MODULE_URL}/chat/exchange")
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{DB_MODULE_URL}/chat/exchange",
-                    params={"limit": max_messages}
+                    params={"limit": CHAT_HISTORY_PAIRS}  # Always use configured amount
                 ) as response:
                     logger.info(f"[PROMPT] Got response with status: {response.status}")
                     if response.status != 200:
@@ -117,14 +117,7 @@ class PromptBuilder:
                         return f"Error fetching chat history: {response.status}"
                     
                     messages = await response.json()
-                    # Add detailed logging of received messages
-                    # for msg in messages:
-                    #     logger.info(
-                    #         f"[PROMPT] Message - Question: {msg.get('question', '')[:30]}... "
-                    #         f"Answer: {msg.get('answer', '')[:30]}..."
-                    #     )
                     formatted = self._format_chat_history(messages)
-                    #logger.info(f"[PROMPT] Formatted history preview: {formatted[:200]}...")
                     return formatted
         except Exception as e:
             logger.error(f"[PROMPT] Error in _get_chat_history: {e}", exc_info=True)

@@ -5,6 +5,8 @@ from typing import List, Dict, Optional
 import logging
 from modules.db_module.models import ChatMessage, ApiUsage
 from decimal import Decimal
+from datetime import datetime
+from src.config.service_config import CHAT_HISTORY_PAIRS
 
 logger = logging.getLogger(__name__)
 
@@ -30,40 +32,35 @@ class ChatRepository:
             await self.session.rollback()
             return False
     
-    async def get_recent_exchanges(self, limit: int = 30) -> List[Dict]:
+    async def get_recent_exchanges(self, limit: int = CHAT_HISTORY_PAIRS) -> List[Dict]:
         """Get recent chat exchanges"""
         try:
+            start_time = datetime.now()
+            # Get pairs of exchanges, limit is number of pairs
             query = select(ChatMessage).order_by(
                 desc(ChatMessage.added_time)
             ).limit(limit)
             
+            query_start = datetime.now()
             result = await self.session.execute(query)
             exchanges = result.scalars().all()
+            query_duration = (datetime.now() - query_start).total_seconds()
+            logger.info(f"[REPO] Database query completed in {query_duration:.3f} seconds")
             
-            # Add logging to see what we got from DB
-            for ex in exchanges:
-                logger.info(
-                    f"[REPO] DB Result - ID: {ex.id}, "
-                    f"Question: {ex.question[:50] + '...' if ex.question else None}, "
-                    f"Answer: {ex.answer[:50] + '...' if ex.answer else None}, "
-                    f"Time: {ex.added_time}"
-                )
-            
-            # Create paired messages in chronological order (reverse the list since we got newest first)
+            # Format exchanges as pairs
+            format_start = datetime.now()
             formatted_exchanges = []
             for exchange in reversed(exchanges):  # Reverse to get chronological order
-                formatted_exchanges.extend([
-                    {
-                        "role": "Madrus",  # Changed from "user"
-                        "content": exchange.question,
-                        "timestamp": exchange.added_time.isoformat()
-                    },
-                    {
-                        "role": "Shiro",   # Changed from "assistant"
-                        "content": exchange.answer,
-                        "timestamp": exchange.added_time.isoformat()
-                    }
-                ])
+                formatted_exchanges.append({
+                    "question": exchange.question,
+                    "answer": exchange.answer,
+                    "timestamp": exchange.added_time.isoformat()
+                })
+            format_duration = (datetime.now() - format_start).total_seconds()
+            logger.info(f"[REPO] Formatting completed in {format_duration:.3f} seconds")
+            
+            total_duration = (datetime.now() - start_time).total_seconds()
+            logger.info(f"[REPO] Total repository operation completed in {total_duration:.3f} seconds")
             
             return formatted_exchanges
             
