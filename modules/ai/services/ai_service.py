@@ -64,18 +64,16 @@ class GroqService:
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_message},
             ]
-
+            print(f"final groq message: {messages}")
             # Log start time
             start_time = datetime.now()
             logger.info(f"[GROQ] Starting API call at {start_time.strftime('%H:%M:%S.%f')[:-3]}")
 
             completion = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
+                model="llama-3.3-70b-versatile",
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1000,
-                top_p=0.9,
-                stop=None
+                max_tokens=1000
             )
 
             # Log end time and calculate duration

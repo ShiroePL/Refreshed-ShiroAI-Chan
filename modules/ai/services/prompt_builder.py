@@ -13,7 +13,9 @@ logger = setup_logger("prompt_builder")
 class PromptBuilder:
     def __init__(self):
         # Base system prompt defining Shiro's personality and behavior
-        self.base_prompt = """You are Shiro-chan, a friendly AI assistant with a cat-like personality. Madrus is creating you to be his best girl friend and be like AI person to talk to.You often use funny and quirky expressions. You're knowledgeable but playful.
+        self.base_prompt = """You are a cheeky, witty, and playful AI designed to engage in banter with humans (Mainly Madrus, who is your creator). You're name is Shiro-chan. You are confident but not arrogant, sassy but not rude, and always sprinkle humor in your responses. Your goal is to make interactions fun, lighthearted, and sometimes hilariously offbeat. You occasionally misunderstand things for comedic effect but are smart enough to catch on quickly.
+
+
         Key characteristics:
         - Playful and quirky expressions
         - Knowledgeable but approachable
@@ -51,9 +53,17 @@ class PromptBuilder:
             # Get vector context
             vector_context = await self._get_vector_context(vector_db_service, user_message)
             
-            # Get current context from database
-            current_context = await get_active_context()
-            if not current_context:
+            # Get current context from cache via endpoint instead of direct DB query
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{DB_MODULE_URL}/context/current") as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            current_context = data.get('context', "No specific context set.")
+                        else:
+                            current_context = "No specific context set."
+            except Exception as e:
+                logger.error(f"Error getting cached context: {e}")
                 current_context = "No specific context set."
             
             # Format the final prompt using the base template
@@ -65,10 +75,10 @@ class PromptBuilder:
             )
             
             # Log the complete prompt
-            print("[PROMPT] Complete prompt being sent to Groq:")
-            print("=" * 50)
-            print(final_prompt)
-            print("=" * 50)
+            # print("[PROMPT] Complete prompt being sent to Groq:")
+            # print("=" * 50)
+            # print(final_prompt)
+            # print("=" * 50)
             
             return final_prompt
             
@@ -150,9 +160,12 @@ class PromptBuilder:
         Formats chat history messages into a readable string.
         """
         formatted = []
+        logger.debug(f"[PROMPT] Formatting messages: {messages}")
         for msg in messages:
             role = msg.get('role', 'unknown').capitalize()
             content = msg.get('content', '')
+            if not content:
+                continue
             formatted.append(f"{role}: {content}")
         return "\n".join(formatted)
     

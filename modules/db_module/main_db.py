@@ -6,11 +6,12 @@ from modules.db_module.services.chat_service import ChatService
 from src.utils.logging_config import setup_logger
 import platform
 import uvicorn
-from .dependencies import save_context, get_active_context
+from modules.db_module.dependencies import save_context, get_active_context, get_available_contexts, set_active_context
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from modules.db_module.services.cache_service import ChatHistoryCache
+from modules.db_module.services.cache_service import ChatHistoryCache, ContextCache
 from src.config.service_config import CHAT_HISTORY_PAIRS
+from datetime import datetime
 
 logger = setup_logger("db_module_main")
 
@@ -31,6 +32,17 @@ async def lifespan(app: FastAPI):
             initial_history = await chat_service.get_chat_history(limit=CHAT_HISTORY_PAIRS)
             app.state.chat_cache.update_cache(initial_history)
         logger.info(f"[INIT] Chat history cache initialized with {CHAT_HISTORY_PAIRS} pairs")
+        
+        # Initialize context cache
+        app.state.context_cache = ContextCache()
+        # Initial context load
+        try:
+            context = await get_active_context()
+            if context:
+                app.state.context_cache.update_context(context)
+            logger.info("[INIT] Context cache initialized")
+        except Exception as e:
+            logger.error(f"[STARTUP] Error loading initial context: {e}")
         
         yield
         
@@ -61,16 +73,33 @@ class ContextUpdate(BaseModel):
 @app.post("/context/update")
 async def update_context(context: ContextUpdate):
     try:
+        # Save to DB
         await save_context(context.context_text)
+        
+        # Update cache
+        context_cache = ContextCache()
+        context_cache.update_context(context.context_text)
+        
         return {"status": "success", "message": "Context updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/context/current")
 async def get_current_context():
+    """Get current context from cache only"""
     try:
-        context = await get_active_context()
-        return {"context": context or "No context set"}
+        context_cache = ContextCache()
+        return {"context": context_cache.get_context()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add a new endpoint to force context refresh
+@app.post("/context/refresh")
+async def force_context_refresh():
+    try:
+        context_cache = ContextCache()
+        context_cache.mark_for_refresh()
+        return {"status": "success", "message": "Context marked for refresh"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -82,6 +111,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/context/available")
+async def get_contexts():
+    """Get all available contexts"""
+    try:
+        contexts = await get_available_contexts()
+        return {"contexts": contexts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/context/activate/{context_id}")
+async def activate_context(context_id: int):
+    """Set a context as active and refresh cache immediately"""
+    try:
+        success = await set_active_context(context_id)
+        if success:
+            # Immediately refresh the cache instead of just marking for refresh
+            context_cache = ContextCache()
+            
+            # Get fresh context from DB
+            new_context = await get_active_context()
+            if new_context:
+                context_cache.update_context(new_context)
+            else:
+                context_cache.update_context("No context set")
+                
+            return {"status": "success", "message": "Context activated and cache updated"}
+        raise HTTPException(status_code=500, detail="Failed to activate context")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     logger.info("[STARTUP] Starting DB service...")

@@ -116,12 +116,27 @@
     <div id="settings-panel" class="settings-panel">
         <div class="settings-content">
             <h3>Settings</h3>
+            
+            <!-- Context Selection Section -->
             <div class="settings-section">
-                <h4>Current Context</h4>
-                <textarea id="context-input" rows="4" placeholder="Enter current context..."></textarea>
-                <button id="save-context" class="settings-button">Save Context</button>
+                <h4>Available Contexts</h4>
+                <div class="context-cards-container">
+                    <select id="context-select" class="context-select">
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- New Context Section -->
+            <div class="settings-section">
+                <h4>Create New Context</h4>
+                <textarea id="context-input" rows="4" placeholder="Enter new context here..."></textarea>
+                <button id="save-context" class="settings-button">
+                    <i class="fas fa-save"></i> Save New Context
+                </button>
                 <p id="context-status" class="status-message"></p>
             </div>
+
             <button id="close-settings" class="close-button">×</button>
         </div>
     </div>
