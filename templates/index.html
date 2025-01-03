@@ -9,6 +9,8 @@
     <!-- Add these meta tags -->
     <meta name="monetization" content="$ilp.uphold.com/24HhrUGG7ekn">
     <meta http-equiv="origin-trial" content="your-token-here">
+    <!-- Add Font Awesome for the cog icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.css">
 </head>
 <body class="bg-light">
     <div class="container py-5">
@@ -77,6 +79,13 @@
                             </label>
                         </div>
 
+                        <div class="control-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="use-openai-check">
+                                Use OpenAI (GPT-4)
+                            </label>
+                        </div>
+
                         <div id="text-input-container" class="card mb-4" style="display: none;">
                             <div class="card-body">
                                 <div class="input-group">
@@ -103,6 +112,40 @@
         </div>
     </div>
 
+    <!-- Add this right after the main chat container but before any scripts -->
+    <div id="settings-panel" class="settings-panel">
+        <div class="settings-content">
+            <h3>Settings</h3>
+            
+            <!-- Context Selection Section -->
+            <div class="settings-section">
+                <h4>Available Contexts</h4>
+                <div class="context-cards-container">
+                    <select id="context-select" class="context-select">
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- New Context Section -->
+            <div class="settings-section">
+                <h4>Create New Context</h4>
+                <textarea id="context-input" rows="4" placeholder="Enter new context here..."></textarea>
+                <button id="save-context" class="settings-button">
+                    <i class="fas fa-save"></i> Save New Context
+                </button>
+                <p id="context-status" class="status-message"></p>
+            </div>
+
+            <button id="close-settings" class="close-button">×</button>
+        </div>
+    </div>
+
+    <!-- Add settings toggle button in the header or wherever you prefer -->
+    <button id="settings-toggle" class="settings-toggle">
+        <i class="fas fa-cog"></i>
+    </button>
+
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <!-- Bootstrap JS -->
@@ -126,5 +169,7 @@
     
     <!-- Load our non-module scripts with defer -->
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 </body>
 </html> 

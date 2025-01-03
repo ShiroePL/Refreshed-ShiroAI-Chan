@@ -85,25 +85,34 @@ body {
 .timer-container {
     display: none;
     position: fixed;
-    bottom: 20px;
+    top: 20px;
     right: 20px;
     background: white;
-    padding: 15px 25px;
+    padding: 20px 30px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     z-index: 9999;
     animation: slideIn 0.3s ease-out;
+    border: 2px solid #198754;
+    opacity: 1 !important; /* Force opacity */
 }
 
 .timer-content {
     text-align: center;
 }
 
+.timer-content h3 {
+    color: #198754;
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+
 .timer-countdown {
-    font-size: 2em;
+    font-size: 2.5em;
     font-weight: bold;
     color: #198754;
     margin: 10px 0;
+    font-family: monospace;
 }
 
 @keyframes slideIn {
@@ -130,4 +139,277 @@ body {
 
 .timer-container.hiding {
     animation: slideOut 0.3s ease-in forwards;
+} 
+
+.current-response {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-left: 4px solid #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.queued-responses {
+    padding: 10px;
+    margin-top: 10px;
+    border-left: 4px solid #6c757d;
+    background-color: rgba(108, 117, 125, 0.1);
+}
+
+.queued-responses ul {
+    margin: 10px 0 0 0;
+    padding-left: 20px;
+}
+
+.queued-responses li {
+    margin-bottom: 5px;
+    color: #666;
+} 
+
+.status-processing {
+    color: #0dcaf0;  /* Bootstrap info color */
+    font-weight: 600;
+}
+
+.queued-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-cancel-queue {
+    background: none;
+    border: none;
+    color: #dc3545;
+    padding: 2px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.btn-cancel-queue:hover {
+    opacity: 1;
+}
+
+.btn-cancel-queue i {
+    font-size: 1.1rem;
+}
+
+.queued-item span {
+    flex: 1;
+} 
+
+/* Ensure timer stays visible when display:block is set */
+.timer-container[style*="display: block"] {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Add transition for smooth appearance */
+.timer-container:not(.hiding) {
+    transition: opacity 0.3s ease-in-out;
+} 
+
+/* Settings Panel Base */
+.settings-panel {
+    position: fixed;
+    top: 0;
+    right: -400px; /* Start off-screen */
+    width: 400px;
+    height: 100vh;
+    background: #1e1e1e;
+    box-shadow: -2px 0 15px rgba(0, 0, 0, 0.3);
+    transition: right 0.3s ease;
+    z-index: 1000;
+}
+
+.settings-panel.open {
+    right: 0;
+}
+
+.settings-content {
+    padding: 30px;
+    color: #fff;
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* Headers */
+.settings-content h3 {
+    margin: 0 0 25px 0;
+    font-size: 24px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.settings-section h4 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: #888;
+    font-weight: 400;
+}
+
+/* Context Select Styling */
+.context-select {
+    width: 100%;
+    padding: 12px;
+    background: #2d2d2d;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+.context-select:hover {
+    border-color: #666;
+}
+
+.context-select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+.context-select option {
+    background: #2d2d2d;
+    color: #fff;
+    padding: 8px;
+    white-space: normal;  /* Allow text to wrap */
+    min-height: 2em;     /* Minimum height for readability */
+}
+
+/* Style for the tooltip */
+.context-select option[title] {
+    cursor: help;
+}
+
+/* Context Input */
+#context-input {
+    width: 100%;
+    background: #2d2d2d;
+    color: #fff;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 150px;  /* Increased from 100px */
+    max-height: 400px;  /* Add maximum height */
+    transition: border-color 0.3s ease;
+}
+
+#context-input:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+/* Buttons */
+.settings-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.3s ease;
+    width: 100%;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.settings-button:hover {
+    background: #0056b3;
+}
+
+.settings-button i {
+    font-size: 16px;
+}
+
+/* Close Button */
+.close-button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 28px;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.close-button:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Status Message */
+.status-message {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #888;
+    transition: color 0.3s ease;
+}
+
+.status-message.success {
+    color: #28a745;
+}
+
+.status-message.error {
+    color: #dc3545;
+}
+
+/* Settings Toggle Button */
+.settings-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2d2d2d;
+    border: none;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    cursor: pointer;
+    color: #fff;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.settings-toggle:hover {
+    background: #3d3d3d;
+    transform: rotate(30deg);
+}
+
+.settings-toggle i {
+    font-size: 20px;
+}
+
+/* Dividers */
+.settings-section {
+    padding: 20px 0;
+    border-bottom: 1px solid #333;
+}
+
+.settings-section:last-child {
+    border-bottom: none;
 } 

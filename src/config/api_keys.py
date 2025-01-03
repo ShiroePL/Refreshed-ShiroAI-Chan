@@ -19,3 +19,7 @@ user_name = os.getenv('user_name')
 db_password = os.getenv('db_password')
 host_name = os.getenv('host_name')
 db_name = os.getenv('db_name')
+
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east-1")
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")

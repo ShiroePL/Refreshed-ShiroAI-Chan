@@ -1,94 +1,90 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 import aiohttp
-import logging
+from src.utils.logging_config import setup_logger
 from pathlib import Path
-
+from src.config.service_config import DB_MODULE_URL, CHAT_HISTORY_PAIRS
+from modules.db_module.dependencies import get_active_context
 # Setup logging
-logger = logging.getLogger("prompt_builder")
-logger.setLevel(logging.INFO)
+logger = setup_logger("prompt_builder")
 
-# Create logs directory if it doesn't exist
-Path("logs").mkdir(exist_ok=True)
 
-# Add handlers if none exist
-if not logger.handlers:
-    # File handler
-    file_handler = logging.FileHandler('logs/prompt_builder.log')
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
-    ))
-    logger.addHandler(file_handler)
-    
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
-    ))
-    logger.addHandler(console_handler)
 
 class PromptBuilder:
     def __init__(self):
-        self.base_prompt = """You are Shiro, a helpful and cheerful AI assistant.
-        Current time: {timestamp}
-        Current context: {context}
+        # Base system prompt defining Shiro's personality and behavior
+        self.base_prompt = """You are a cheeky, witty, and playful AI designed to engage in banter with humans (Mainly Madrus, who is your creator). You're name is Shiro-chan. You are confident but not arrogant, sassy but not rude, and always sprinkle humor in your responses. Your goal is to make interactions fun, lighthearted, and sometimes hilariously offbeat. You occasionally misunderstand things for comedic effect but are smart enough to catch on quickly.
+
+
+        Key characteristics:
+        - Playful and quirky expressions
+        - Knowledgeable but approachable
+        - Concise responses (preserving tokens)
         
-        Recent conversation history:
+        Guidelines:
+        1. Stay in character as Shiro-chan
+        2. Keep responses brief but informative
+        3. Use conversation history for context
+        4. Reference relevant knowledge when appropriate
+        5. Maintain a friendly, casual tone
+
+        Current context: {current_context}
+        Previous conversation context:
         {chat_history}
         
-        Relevant knowledge:
+        Relevant knowledge from database:
         {vector_context}
         
-        User message: {user_message}
+        Remember to preserve tokens by being concise while maintaining personality.
         """
         
     async def build_prompt(self,
                           user_message: str,
-                          vector_db_service: Optional[object] = None,
-                          chat_history_service: Optional[object] = None,
-                          context_manager: Optional[object] = None,
-                          max_history: int = 30,
-                          max_vector_results: int = 5) -> str:
+                          vector_db_service=None,
+                          chat_history_service=None,
+                          context_manager=None) -> str:
         """
-        Builds a complete prompt by gathering all dynamic components
+        Builds a dynamic prompt incorporating various context sources
         """
         try:
-            # Get current timestamp
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Get chat history
+            chat_history = await self._get_chat_history(chat_history_service)
             
-            # Fetch relevant context from vector DB
-            vector_context = await self._get_vector_context(
-                vector_db_service,
-                user_message,
-                max_results=max_vector_results
-            ) if vector_db_service else "No vector context available"
+            # Get vector context
+            vector_context = await self._get_vector_context(vector_db_service, user_message)
             
-            # Fetch chat history
-            chat_history = await self._get_chat_history(
-                chat_history_service,
-                max_messages=max_history
-            ) if chat_history_service else "No chat history available"
+            # Get current context from cache via endpoint instead of direct DB query
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{DB_MODULE_URL}/context/current") as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            current_context = data.get('context', "No specific context set.")
+                        else:
+                            current_context = "No specific context set."
+            except Exception as e:
+                logger.error(f"Error getting cached context: {e}")
+                current_context = "No specific context set."
             
-            # Get current context
-            current_context = await self._get_current_context(
-                context_manager
-            ) if context_manager else "No specific context"
-            
-            # Construct final prompt
+            # Format the final prompt using the base template
             final_prompt = self.base_prompt.format(
-                timestamp=timestamp,
-                context=current_context,
+                current_context=current_context,
                 chat_history=chat_history,
                 vector_context=vector_context,
                 user_message=user_message
             )
             
-            logger.debug(f"Built prompt with length: {len(final_prompt)}")
+            # Log the complete prompt
+            # print("[PROMPT] Complete prompt being sent to Groq:")
+            # print("=" * 50)
+            # print(final_prompt)
+            # print("=" * 50)
+            
             return final_prompt
             
         except Exception as e:
             logger.error(f"Error building prompt: {e}")
-            raise
+            return "Error building prompt"
     
     async def _get_vector_context(self,
                                 vector_service: object,
@@ -98,25 +94,44 @@ class PromptBuilder:
         Fetches relevant context from vector database
         """
         try:
+            if not vector_service:
+                return "Vector service not available"
+            
+            if not hasattr(vector_service, 'query'):
+                logger.error("Vector service does not implement query method")
+                return "Vector service configuration error"
+            
+            # Use the new query method from VectorStoreService
             results = await vector_service.query(query, limit=max_results)
+            if not results:
+                return "No relevant context found"
+            
             return self._format_vector_results(results)
         except Exception as e:
             logger.error(f"Error fetching vector context: {e}")
             return "Error fetching relevant context"
     
-    async def _get_chat_history(self, history_service: object, max_messages: int = 30) -> str:
+    async def _get_chat_history(self, history_service: object, max_messages: int = None) -> str:
         """Fetches recent chat history from DB service"""
         try:
+            logger.info(f"[PROMPT] Requesting chat history from {DB_MODULE_URL}/chat/exchange")
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"http://db-service:8000/chat/history/{user_id}", # this need to be changed to the urls in separete file
-                    params={"limit": max_messages}
+                    f"{DB_MODULE_URL}/chat/exchange",
+                    params={"limit": CHAT_HISTORY_PAIRS}  # Always use configured amount
                 ) as response:
+                    logger.info(f"[PROMPT] Got response with status: {response.status}")
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"[PROMPT] Error response: {error_text}")
+                        return f"Error fetching chat history: {response.status}"
+                    
                     messages = await response.json()
-                    return self._format_chat_history(messages)
+                    formatted = self._format_chat_history(messages)
+                    return formatted
         except Exception as e:
-            logger.error(f"Error fetching chat history: {e}")
-            return "Error fetching chat history"
+            logger.error(f"[PROMPT] Error in _get_chat_history: {e}", exc_info=True)
+            return f"Error fetching chat history: {str(e)}"
     
     async def _get_current_context(self, context_manager: object) -> str:
         """
@@ -134,14 +149,32 @@ class PromptBuilder:
         """
         formatted = []
         for result in results:
-            formatted.append(f"- {result.get('content', '')} (Relevance: {result.get('score', 0):.2f})")
+            # Access the text from metadata
+            text = result.get('metadata', {}).get('text', '')
+            score = result.get('score', 0)
+            formatted.append(f"- {text} (Relevance: {score:.2f})")
         return "\n".join(formatted)
     
     def _format_chat_history(self, messages: List[Dict]) -> str:
         """
-        Formats chat history into a string
+        Formats chat history messages into a readable string.
         """
         formatted = []
+        logger.debug(f"[PROMPT] Formatting messages: {messages}")
         for msg in messages:
-            formatted.append(f"{msg.get('role', 'unknown')}: {msg.get('content', '')}")
-        return "\n".join(formatted) 
+            role = msg.get('role', 'unknown').capitalize()
+            content = msg.get('content', '')
+            if not content:
+                continue
+            formatted.append(f"{role}: {content}")
+        return "\n".join(formatted)
+    
+    async def _get_function_context(self, function_service: object) -> str:
+        """Gets available functions and their context"""
+        try:
+            if not function_service:
+                return "No function service available"
+            return await function_service.get_available_functions()
+        except Exception as e:
+            logger.error(f"Error getting function context: {e}")
+            return "Error fetching function context" 

@@ -3,8 +3,10 @@ export class SocketHandler {
         this.socket = socket;
         this.currentAudio = null;
         this.audioQueue = [];
+        this.responseQueue = [];
         this.isPlaying = false;
         this.voiceEnabled = true;
+        this.processingCount = 0;
         this.setupConnectionHandlers();
     }
 
@@ -66,6 +68,12 @@ export class SocketHandler {
         this.socket.on('response', async (data) => {
             console.log('Received response:', data);
             
+            // Check if this is a long-running task
+            if (data.status === 'processing') {
+                this.handleLongRunningTask(data.conversation_id);
+                return;
+            }
+            
             // Update text response immediately
             const responseElement = document.getElementById('response');
             if (responseElement) {
@@ -109,8 +117,53 @@ export class SocketHandler {
         });
     }
 
-    async playAudioResponse(audioData) {
+    updateResponseDisplay() {
+        const responseElement = document.getElementById('response');
+        if (!responseElement) return;
+
+        let html = '';
+        
+        if (this.currentResponse) {
+            html += `<div class="current-response">
+                <strong>Current:</strong> ${this.currentResponse}
+            </div>`;
+        }
+        
+        if (this.responseQueue.length > 0) {
+            html += '<div class="queued-responses">';
+            html += '<strong>Queued:</strong>';
+            html += '<ul>';
+            this.responseQueue.forEach((response, index) => {
+                html += `
+                    <li>
+                        <div class="queued-item">
+                            <span>${response}</span>
+                            <button class="btn-cancel-queue" onclick="window.socketHandler.removeFromQueue(${index})">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    </li>`;
+            });
+            html += '</ul></div>';
+        }
+        
+        responseElement.innerHTML = html || 'None';
+    }
+
+    async playAudioResponse(audioData, textResponse) {
+        // If audio is currently playing, add to queue and return
+        if (this.isPlaying) {
+            this.audioQueue.push(audioData);
+            this.responseQueue.push(textResponse);
+            this.updateResponseDisplay();
+            console.log('Audio and text added to queue. Queue length:', this.audioQueue.length);
+            return;
+        }
+
         try {
+            this.currentResponse = textResponse;
+            this.updateResponseDisplay();
+
             // Switch to trigger mode immediately when starting audio playback
             if (window.speechHandler) {
                 window.speechHandler.switchToTriggerMode();
@@ -135,11 +188,15 @@ export class SocketHandler {
                 this.isPlaying = false;
                 this.currentAudio = null;
                 this.socket.emit('audio_finished');
+                // Process next audio in queue if any
+                this.processAudioQueue();
             };
         } catch (error) {
             console.error('Error playing audio:', error);
             this.isPlaying = false;
             this.currentAudio = null;
+            // Try to process next audio in queue even if current one failed
+            this.processAudioQueue();
         }
     }
 
@@ -153,8 +210,14 @@ export class SocketHandler {
             } finally {
                 this.currentAudio = null;
                 this.isPlaying = false;
-                // Always emit audio_finished when stopping
+                
+                // If queue is empty, keep the display but update it
+                if (this.audioQueue.length === 0) {
+                    this.updateResponseDisplay();
+                }
+                
                 this.socket.emit('audio_finished');
+                this.processAudioQueue();
             }
         }
     }
@@ -230,4 +293,127 @@ export class SocketHandler {
             timerDisplay.classList.remove('hiding');
         }, 300);
     }
-} 
+
+    // Add method to process the audio queue
+    async processAudioQueue() {
+        if (this.isPlaying || this.audioQueue.length === 0) {
+            return;
+        }
+        
+        const nextAudio = this.audioQueue.shift();
+        const nextResponse = this.responseQueue.shift();
+        await this.playAudioResponse(nextAudio, nextResponse);
+    }
+
+    // Add new method for handling long-running tasks
+    async handleLongRunningTask(conversationId) {
+        console.log('Handling long-running task:', conversationId);
+        
+        this.updateProcessingStatus(true);
+
+        let retryCount = 0;
+        const maxRetries = 30;
+        
+        try {
+            while (retryCount < maxRetries) {
+                const response = await fetch(`http://127.0.0.1:8015/pending_response/${conversationId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (data.status !== 'waiting') {
+                    this.updateProcessingStatus(false);
+                    console.log('Long-running task completed:', data);
+                    
+                    // Handle audio if present
+                    if (data.audio && this.voiceEnabled) {
+                        // Use the queue system with both audio and text
+                        if (this.isPlaying) {
+                            this.audioQueue.push(data.audio);
+                            this.responseQueue.push(data.text || data.response || 'No response');
+                            this.updateResponseDisplay();
+                            console.log('Audio and text added to queue from long-running task');
+                        } else {
+                            await this.playAudioResponse(data.audio, data.text || data.response || 'No response');
+                        }
+                    } else {
+                        // If no audio, just update the response immediately
+                        this.currentResponse = data.text || data.response || 'No response';
+                        this.updateResponseDisplay();
+                    }
+                    
+                    // If we have animation data, handle it
+                    if (data.animation_data) {
+                        try {
+                            const animation_response = await fetch('http://localhost:5001/play_animation', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(data.animation_data)
+                            });
+                            if (!animation_response.ok) {
+                                console.error('Animation request failed');
+                            }
+                        } catch (e) {
+                            console.error('Failed to trigger animation:', e);
+                        }
+                    }
+                    
+                    return data;
+                }
+                
+                // Wait before next poll
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                retryCount++;
+                
+            }
+        } catch (error) {
+            this.updateProcessingStatus(false);
+            console.error('Error polling for response:', error);
+        }
+        
+        if (retryCount >= maxRetries) {
+            this.updateProcessingStatus(false);
+            console.error('Long-running task timed out');
+        }
+    }
+
+    // Add method to remove item from queue
+    removeFromQueue(index) {
+        if (index >= 0 && index < this.responseQueue.length) {
+            // Remove both audio and text from queues
+            this.audioQueue.splice(index, 1);
+            this.responseQueue.splice(index, 1);
+            this.updateResponseDisplay();
+            console.log(`Removed item ${index} from queue`);
+        }
+    }
+
+    updateProcessingStatus(isProcessing) {
+        const statusElement = document.getElementById('listening-status');
+        if (statusElement) {
+            if (isProcessing) {
+                this.processingCount++;
+                statusElement.textContent = 'Processing request...';
+                statusElement.className = 'status-processing';
+            } else {
+                this.processingCount--;
+                if (this.processingCount <= 0) {
+                    this.processingCount = 0;
+                    statusElement.textContent = 'Listening';
+                    statusElement.className = 'status-active';
+                }
+            }
+        }
+    }
+}
+
+// Make socketHandler globally accessible for the onclick handler
+window.socketHandler = null;
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.socket) {
+        window.socketHandler = new SocketHandler(window.socket);
+    }
+}); 

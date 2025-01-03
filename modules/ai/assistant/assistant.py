@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 class AIAgent:
     def __init__(self):
         try:
-            # Initialize Groq service
-            api_keys = get_groq_api_keys()
-            self.groq_service = GroqService(api_keys)
+            # Instead of initializing Groq service directly, use AI service endpoint
+            from src.config.service_config import AI_SERVICE_URL
+            self.ai_service_url = AI_SERVICE_URL
             
             # Add text mode and listening flags
             self.text_mode = False

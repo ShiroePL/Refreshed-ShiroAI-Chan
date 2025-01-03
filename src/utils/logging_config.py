@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from colorama import init, Fore, Style
+from colorama import Back, init, Fore, Style
 import sys
 
 # Initialize colorama
@@ -30,6 +30,16 @@ class ColoredFormatter(logging.Formatter):
         'ERROR': Fore.RED + Style.BRIGHT,
         'SHUTDOWN': Fore.RED,
         'HTTP': Fore.BLUE,
+        
+        # Added missing labels
+        'TRANSCRIPT': Fore.MAGENTA + Style.BRIGHT + Back.CYAN,  # Rainbow-like effect for high visibility of new messages
+        'POST': Fore.BLUE + Style.BRIGHT,        # HTTP POST requests
+        'GET': Fore.BLUE,                        # HTTP GET requests
+        'SERVICE': Fore.YELLOW + Style.BRIGHT,   # Service-related logs
+        'PROMPT': Fore.MAGENTA,   # AI prompt-related logs
+        'SAVE': Fore.YELLOW,      # Save-related logs
+        'BACKOFF': Fore.YELLOW,  # Backoff-related logs
+        'OPENAI': Fore.BLUE,    # OpenAI-related logs
     }
 
     def format(self, record):
@@ -74,7 +84,7 @@ def setup_logger(module_name: str) -> logging.Logger:
     console_handler.setLevel(logging.INFO)
     
     # File handler without colors
-    file_handler = logging.FileHandler(f'logs/{module_name}.log')
+    file_handler = logging.FileHandler(f'logs/{module_name}.log', encoding='utf-8')
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
     ))
