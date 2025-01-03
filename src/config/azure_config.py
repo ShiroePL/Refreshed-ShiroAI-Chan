@@ -20,8 +20,14 @@ def get_speech_config():
 
 def get_groq_api_keys():
     """Get Groq API keys from environment variables."""
-    api_key = os.getenv('GROQ_API_KEY')
-    if not api_key:
-        raise ValueError("GROQ_API_KEY environment variable not set")
+    keys = {
+        "madruss_groq_key": os.getenv('MADRUSS_GROQ_KEY'),
+        "otaku_groq_key": os.getenv('OTAKU_GROQ_KEY'),
+        "paid_groq_key": os.getenv('PAID_GROQ_KEY')
+    }
     
-    return [api_key] 
+    # Ensure at least one key is available
+    if not any(keys.values()):
+        raise ValueError("No Groq API keys found in environment variables")
+    
+    return keys 

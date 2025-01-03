@@ -1,3 +1,4 @@
+import time
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List
@@ -185,7 +186,7 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
         # Record timing for context gathering
         context_duration = (datetime.now() - context_start).total_seconds()
         timings['context_gathering'] = context_duration
-        logger.info(f"[TIMING] Context gathering completed in {context_duration:.3f} seconds")
+        
         
         # Start timing AI service
         ai_start = datetime.now()
@@ -193,26 +194,37 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
         # Get text response from selected AI service
         logger.info(f"[AI] Using {'OpenAI' if use_openai else 'Groq'} service...")
         
+
+        
+
         # Use gathered results for AI call
         if use_openai:
+            api_start = datetime.now()
             text_response = await app.state.openai_service.send_to_openai(
                 transcript,
                 vector_db_service=vector_results if vector_results is not None else None,
                 chat_history_service=history,
                 context_manager=context
             )
+            api_duration = (datetime.now() - api_start).total_seconds()
+            logger.info(f"[OPENAI] API call completed in {api_duration:.3f} seconds")
         else:
+            api_start = datetime.now()
             text_response = await app.state.groq_service.send_to_groq(
                 transcript,
                 vector_db_service=vector_results if vector_results is not None else None,
                 chat_history_service=history,
                 context_manager=context
             )
+            api_duration = (datetime.now() - api_start).total_seconds()
+            logger.info(f"[GROQ] API call completed in {api_duration:.3f} seconds")
+        
+        
         
         # Record timing for AI service
         ai_duration = (datetime.now() - ai_start).total_seconds()
         timings['ai_service'] = ai_duration
-        logger.info(f"[TIMING] AI service completed in {ai_duration:.3f} seconds")
+        
         
         logger.info(f"[AI] Received response ({len(text_response)} chars): {text_response[:30]}...")
         
@@ -225,14 +237,18 @@ async def process_request(transcript: str, groq_service: GroqService, tts_servic
         # Record timing for TTS
         tts_duration = (datetime.now() - tts_start).total_seconds()
         timings['tts_service'] = tts_duration
-        logger.info(f"[TIMING] TTS completed in {tts_duration:.3f} seconds")
+        
         
         result = {
             "text": text_response,
             "audio": audio_data,
             "success": True
         }
+        # log the timings
         
+        logger.info(f"[TIMING] Context gathering: {context_duration:.3f} seconds")
+        logger.info(f"[TIMING] AI service: {ai_duration:.3f} seconds")
+        logger.info(f"[TIMING] TTS service: {tts_duration:.3f} seconds")
         logger.info("[SUCCESS] Request processing completed")
         return result
         
